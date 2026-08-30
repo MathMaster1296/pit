@@ -205,7 +205,7 @@ main {
   overflow: hidden;
 }
 #tape li { display: flex; justify-content: space-between; }
-#tape .you-tag { color: var(--you); }
+.you-tag { color: var(--you); }
 
 /* misc */
 

@@ -52,6 +52,24 @@ noise crowd     3089653      433    -22351.17
 The noise crowd pays for everything, which is also the textbook answer to
 who funds the market making industry.
 
+## Playing it
+
+The demo runs itself, but it is more fun as a participant. Set a quantity on
+your desk, then click a price in the book to rest a limit order there: the
+green side buys, the red side sells. The market buttons cross the spread
+immediately. Open orders sit under your desk with a cancel button, your
+fills print on the tape tagged "you", and your P&L is marked to the mid.
+Pause with the button or the space bar, and use the speed control to fast
+forward through quiet stretches.
+
+Two trades worth trying. In a calm stretch, rest a buy a couple of ticks
+below the mid and a sell a couple above, and earn the spread the way the
+makers do. And when the chart shades, read the direction off the tape, take
+that side with a market order, and flatten when the shading stops. If you
+instead leave resting quotes out through an episode, you will find out
+personally what adverse selection costs, which is the lesson the whole sim
+is built around.
+
 ## The engine
 
 `engine/` is a standalone price-time priority matching engine with no

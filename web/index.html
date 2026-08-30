@@ -77,6 +77,36 @@
 <div id="loading" class="panel notice">loading the engine...</div>
 
 <details class="about panel">
+  <summary>how to play</summary>
+  <p>Everything runs in your tab. The seed box picks the run: the same seed
+  always produces the same market, tick for tick, so if something interesting
+  happens you can send the URL to someone and they will watch the exact same
+  thing. Pause freezes time (space works too), and speed is how many
+  simulation ticks pass per animation frame.</p>
+
+  <p>To trade, set a quantity on your desk, then click a price in the book:
+  the green side rests a buy limit at that price, the red side rests a sell.
+  Your size shows next to the level in amber, like (10). The market buttons
+  cross the spread immediately at the best available prices. Open orders sit
+  under your desk with an x to cancel, fills print on the tape tagged
+  <span class="you-tag">you</span>, and the amber squares on the chart are
+  your trades. P&amp;L is marked to the mid, so it moves while you hold.</p>
+
+  <p>Three things worth trying. First, be a market maker: in a calm stretch,
+  rest a buy a couple of ticks below the mid and a sell a couple above, and
+  collect the spread as the crowd trades through you. Second, trade an
+  episode: when the chart shades, the tape will start running one color, so
+  take that side with a market order and flatten when the shading stops.
+  Third, leave your maker quotes out during an episode on purpose, and watch
+  what getting picked off costs. That last one is the reason mm-wary
+  exists.</p>
+
+  <p>If your first market order shows a small loss right away, that is not a
+  bug. You paid the spread, which is the thing everyone else here is fighting
+  over.</p>
+</details>
+
+<details class="about panel">
   <summary>what am I looking at?</summary>
   <p>This is a working limit order book. The matching engine is written in Rust,
   compiled to WebAssembly, and runs entirely in your browser tab: price-time
