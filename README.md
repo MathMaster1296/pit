@@ -57,10 +57,12 @@ who funds the market making industry.
 The demo runs itself, but it is more fun as a participant. Set a quantity on
 your desk, then click a price in the book to rest a limit order there: the
 green side buys, the red side sells. The market buttons cross the spread
-immediately. Open orders sit under your desk with a cancel button, your
-fills print on the tape tagged "you", and your P&L is marked to the mid.
-Pause with the button or the space bar, and use the speed control to fast
-forward through quiet stretches.
+immediately, join bid and join ask rest a limit at the touch, and flatten
+markets out of your whole position. Open orders sit under your desk with a
+cancel button, your fills print on the tape tagged "you", and your P&L is
+marked to the mid. Pause with the button or the space bar, use the speed
+control to fast forward through quiet stretches, and use share to copy a
+link that replays the run you are watching.
 
 Two trades worth trying. In a calm stretch, rest a buy a couple of ticks
 below the mid and a sell a couple above, and earn the spread the way the

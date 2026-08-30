@@ -2,12 +2,12 @@ import { money, lots } from './fmt.js';
 
 // Order matches the accounts() array from the wasm side.
 const DESKS = [
-  { name: 'you', cls: 'you-row' },
-  { name: 'informed' },
-  { name: 'mm-fixed' },
-  { name: 'mm-skew' },
-  { name: 'mm-wary' },
-  { name: 'noise crowd' },
+  { name: 'you', cls: 'you-row', tip: 'your desk. cash plus position, marked to the mid.' },
+  { name: 'informed', tip: 'shows up during the shaded episodes and can see where fair value is headed' },
+  { name: 'mm-fixed', tip: 'quotes a constant spread around the mid, no matter what is happening' },
+  { name: 'mm-skew', tip: 'shifts its quotes against its inventory so a position never builds up' },
+  { name: 'mm-wary', tip: 'skews like mm-skew, widens when flow turns one-sided, and walks away past a threshold' },
+  { name: 'noise crowd', tip: 'twenty mostly-random traders, shown as one book. they pay for everything.' },
 ];
 
 export class Desks {
@@ -17,6 +17,7 @@ export class Desks {
       if (d.cls) tr.className = d.cls;
       const name = document.createElement('td');
       name.textContent = d.name;
+      name.title = d.tip;
       const pos = document.createElement('td');
       pos.className = 'pos';
       const vol = document.createElement('td');

@@ -11,20 +11,72 @@ let sim = null;
 let seed = 0;
 let paused = false;
 let tickCost = 0; // engine time per tick in microseconds, measured at warmup
+let lastStatus = null;
+let lastAccounts = null;
+let wasEpisode = false;
+let lastFillToast = 0;
+
+// One-time tips, remembered across visits where the browser allows it.
+const tips = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('pit-tips')) || {};
+  } catch {
+    return {};
+  }
+})();
+
+function tipOnce(key, text) {
+  if (tips[key]) return;
+  tips[key] = 1;
+  try {
+    localStorage.setItem('pit-tips', JSON.stringify(tips));
+  } catch {
+    // private windows forget, which just means the tip shows again
+  }
+  notify(text, 7000);
+}
+
+function notify(text, ttl = 3500) {
+  const box = $('toasts');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = text;
+  box.append(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, ttl);
+  while (box.children.length > 3) box.firstChild.remove();
+}
 
 const chart = new Chart($('chart'));
 const tape = new Tape($('tape'));
 const desks = new Desks($('desks'));
 const ladder = new Ladder($('ladder'), (side, px) => {
   if (!sim) return;
-  const qty = orderQty();
-  if (qty) sim.user_limit(side === 'buy', px, qty);
-  render();
+  placeLimit(side === 'buy', px);
 });
 
 function orderQty() {
   const q = Math.floor(Number($('qty').value));
-  return q >= 1 && q <= 500 ? q : 0;
+  if (q >= 1 && q <= 500) return q;
+  notify('qty needs to be between 1 and 500');
+  return 0;
+}
+
+function placeLimit(buy, px) {
+  const qty = orderQty();
+  if (!qty || !px) return;
+  const id = sim.user_limit(buy, px, qty);
+  const orders = sim.user_orders();
+  for (let i = 0; i < orders.length; i += 4) {
+    if (orders[i] === id) {
+      notify(`resting: ${buy ? 'buy' : 'sell'} ${orders[i + 3]} @ ${price(px)}`);
+      break;
+    }
+  }
+  render();
 }
 
 function restart(newSeed) {
@@ -51,12 +103,44 @@ function render() {
   const trades = sim.trades();
   const orders = sim.user_orders();
   const accounts = sim.accounts();
+  lastStatus = status;
+  lastAccounts = accounts;
   chart.push(sim.series(), trades);
   chart.draw();
   ladder.draw(sim.depth(16), status, orders);
   tape.push(trades);
   desks.draw(accounts, status);
   drawUser(accounts, orders);
+  $('flatten').disabled = accounts[1] === 0;
+
+  const episode = status[5] === 1;
+  $('episode-pill').hidden = !episode;
+  if (episode && !wasEpisode) {
+    tipOnce(
+      'episode',
+      'that shading is informed flow: someone can see where the price is headed. watch the desks table.',
+    );
+  }
+  wasEpisode = episode;
+
+  // Your fills, batched per frame so a burst reads as one line.
+  let filled = 0;
+  let notional = 0;
+  for (let i = 0; i < trades.length; i += 6) {
+    if (trades[i + 4] === 1 || trades[i + 5] === 1) {
+      filled += trades[i + 2];
+      notional += trades[i + 1] * trades[i + 2];
+    }
+  }
+  if (filled > 0) {
+    tipOnce('fill', 'p&l marks to the mid while you hold. flatten gets you out in one click.');
+    const now = performance.now();
+    if (now - lastFillToast > 1500) {
+      lastFillToast = now;
+      notify(`filled ${filled} @ ${price(notional / filled)}`);
+    }
+  }
+
   $('perf').textContent =
     `tick ${status[0]} | engine ${tickCost.toFixed(1)} us/tick in wasm | ` +
     `same seed, same market: #${seed}`;
@@ -118,13 +202,22 @@ function wire() {
     restart(s >= 1 ? s : randomSeed());
   });
   $('pause').addEventListener('click', togglePause);
-  $('buy').addEventListener('click', () => {
-    if (orderQty()) sim.user_market(true, orderQty());
+  $('buy').addEventListener('click', () => marketOrder(true));
+  $('sell').addEventListener('click', () => marketOrder(false));
+  $('join-bid').addEventListener('click', () => placeLimit(true, lastStatus?.[1]));
+  $('join-ask').addEventListener('click', () => placeLimit(false, lastStatus?.[2]));
+  $('flatten').addEventListener('click', () => {
+    const pos = lastAccounts ? lastAccounts[1] : 0;
+    if (pos === 0) return;
+    sim.user_market(pos < 0, Math.abs(pos));
     render();
   });
-  $('sell').addEventListener('click', () => {
-    if (orderQty()) sim.user_market(false, orderQty());
-    render();
+  $('share').addEventListener('click', () => {
+    const url = `${location.origin}${location.pathname}#${seed}`;
+    navigator.clipboard.writeText(url).then(
+      () => notify('link copied. same seed, same market.'),
+      () => notify(`copy this by hand: ${url}`),
+    );
   });
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
@@ -132,6 +225,13 @@ function wire() {
       togglePause();
     }
   });
+}
+
+function marketOrder(buy) {
+  const qty = orderQty();
+  if (!qty) return;
+  sim.user_market(buy, qty);
+  render();
 }
 
 function togglePause() {
@@ -151,6 +251,13 @@ init()
     const fromHash = Math.floor(Number(location.hash.slice(1)));
     restart(fromHash >= 1 ? fromHash : randomSeed());
     requestAnimationFrame(frame);
+    if (!tips.welcome) {
+      document.querySelector('details.about').open = true;
+    }
+    tipOnce(
+      'welcome',
+      'you have a desk: click a price in the book to rest an order there, or use the market buttons.',
+    );
   })
   .catch((err) => {
     $('loading').textContent =

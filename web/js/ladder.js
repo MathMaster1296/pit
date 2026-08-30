@@ -78,7 +78,13 @@ function cell(cls) {
 }
 
 function setSide(el, qty, mineQty, maxQty, px) {
-  el.dataset.px = px > 0 ? px : '';
+  const pxStr = px > 0 ? String(px) : '';
+  if (el.dataset.px !== pxStr) {
+    el.dataset.px = pxStr;
+    el.title = px > 0
+      ? `rest a ${el.classList.contains('ask') ? 'sell' : 'buy'} limit at ${price(px)}`
+      : '';
+  }
   const [bar, a, b] = el.children;
   const qtySpan = el.classList.contains('ask') ? a : b;
   const mineSpan = el.classList.contains('ask') ? b : a;

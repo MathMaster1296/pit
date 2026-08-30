@@ -67,6 +67,9 @@ button { cursor: pointer; }
 button:hover { border-color: var(--muted); }
 button.buy { color: var(--green); }
 button.sell { color: var(--red); }
+button:disabled { opacity: 0.45; cursor: default; }
+button:disabled:hover { border-color: var(--panel-edge); }
+#flatten { color: var(--you); }
 
 main {
   display: grid;
@@ -210,6 +213,33 @@ main {
 /* misc */
 
 .notice { margin: 20px 0; color: var(--muted); }
+
+#toasts {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none;
+  max-width: min(92vw, 34rem);
+}
+
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-left: 3px solid var(--you);
+  border-radius: 6px;
+  padding: 6px 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.toast.show { opacity: 1; }
 
 .about { margin-top: 14px; color: var(--text); }
 .about summary { cursor: pointer; color: var(--muted); }
