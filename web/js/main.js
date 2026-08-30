@@ -13,6 +13,7 @@ let paused = false;
 let tickCost = 0; // engine time per tick in microseconds, measured at warmup
 let lastStatus = null;
 let lastAccounts = null;
+let lastTradePx = 0;
 let wasEpisode = false;
 let lastFillToast = 0;
 
@@ -86,6 +87,8 @@ function restart(newSeed) {
   sim = new PitSim(seed);
   chart.reset();
   tape.reset();
+  desks.reset();
+  lastTradePx = 0;
   // Run the market in before showing it, so the chart opens with history
   // instead of a lonely dot. The pre-open trades don't hit the tape. A batch
   // this long is also the one honest way to time the engine from JS, since
@@ -112,6 +115,12 @@ function render() {
   desks.draw(accounts, status);
   drawUser(accounts, orders);
   $('flatten').disabled = accounts[1] === 0;
+
+  if (trades.length) lastTradePx = trades[trades.length - 5];
+  const bb = status[1] ? price(status[1]) : '?';
+  const ba = status[2] ? price(status[2]) : '?';
+  $('quote-line').textContent =
+    `${bb} / ${ba}` + (lastTradePx ? `, last ${price(lastTradePx)}` : '');
 
   const episode = status[5] === 1;
   $('episode-pill').hidden = !episode;

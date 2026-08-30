@@ -179,6 +179,26 @@ main {
 }
 .badge.hot { color: var(--red); border-color: var(--red-dim); }
 
+#quote-line {
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 10px;
+}
+
+#desks td.spark { padding: 3px 4px 0; }
+#desks .spark canvas {
+  display: block;
+  margin-left: auto;
+  width: 56px;
+  height: 16px;
+}
+
+@media (max-width: 480px) {
+  #desks .spark { display: none; }
+}
+
 /* user panel */
 
 .user-stats { display: flex; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }

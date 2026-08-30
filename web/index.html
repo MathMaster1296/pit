@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pit</title>
 <meta name="description" content="A tiny exchange you can trade on: a real matching engine compiled to WebAssembly, three market makers, and a crowd of noise traders.">
+<meta property="og:title" content="pit">
+<meta property="og:description" content="A tiny exchange you can trade on, running entirely in your browser: three market makers, a crowd of noise traders, and sometimes someone who knows something.">
+<meta property="og:image" content="https://mathmaster1296.github.io/pit/card.png">
+<meta property="og:url" content="https://mathmaster1296.github.io/pit/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23101418'/><rect x='2' y='7' width='3' height='7' fill='%234caf7d'/><rect x='6.5' y='3' width='3' height='11' fill='%23e05555'/><rect x='11' y='5' width='3' height='9' fill='%234caf7d'/></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -40,6 +46,7 @@
   <section class="center-panel">
     <div class="panel chart-panel">
       <h2><span>market
+        <span id="quote-line" title="best bid / best ask, and the last traded price"></span>
         <span id="episode-pill" class="badge hot" hidden
           title="an informed trader is in the market and can see where fair value is headed">informed flow</span></span>
         <span class="legend">
@@ -53,7 +60,7 @@
     <div class="panel desks-panel">
       <h2>the desks</h2>
       <table id="desks">
-        <thead><tr><th>desk</th><th title="net position in lots">pos</th><th title="total lots traded">volume</th><th title="cash plus position marked to the mid, in dollars">p&amp;l</th><th></th></tr></thead>
+        <thead><tr><th>desk</th><th title="net position in lots">pos</th><th title="total lots traded">volume</th><th title="cash plus position marked to the mid, in dollars">p&amp;l</th><th class="spark"></th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>

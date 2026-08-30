@@ -1,11 +1,19 @@
 # pit
 
+[![ci](https://github.com/MathMaster1296/pit/actions/workflows/ci.yml/badge.svg)](https://github.com/MathMaster1296/pit/actions/workflows/ci.yml)
+
 A tiny exchange that runs in your browser: a real limit order book matching
 engine written in Rust, compiled to WebAssembly, with three market makers, a
 crowd of noise traders, and an occasional informed trader who knows where the
 price is going before everyone else.
 
 **Live demo: [mathmaster1296.github.io/pit](https://mathmaster1296.github.io/pit)**
+
+[![the pit trading screen: the order book, a price chart with a shaded informed episode, and the desks table with everyone's p&l](web/card.png)](https://mathmaster1296.github.io/pit/)
+
+That shaded band on the chart is an informed trader unloading before a drop
+they saw coming. The white line is the traded mid; the dashed line is the
+hidden fair value it is chasing.
 
 You get a desk too. Click the book to rest limit orders, hit the market
 buttons, and see if you can stay ahead of the bots. Runs are deterministic:
