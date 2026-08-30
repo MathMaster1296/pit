@@ -1,0 +1,11 @@
+[workspace]
+members = ["engine", "sim", "wasm"]
+resolver = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+# wasm-pack builds with --release; keep debug builds fast for tests
+[profile.bench]
+lto = true
