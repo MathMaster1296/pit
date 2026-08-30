@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pit</title>
+<meta name="description" content="A tiny exchange you can trade on: a real matching engine compiled to WebAssembly, three market makers, and a crowd of noise traders.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23101418'/><rect x='2' y='7' width='3' height='7' fill='%234caf7d'/><rect x='6.5' y='3' width='3' height='11' fill='%23e05555'/><rect x='11' y='5' width='3' height='9' fill='%234caf7d'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <h1>pit</h1>
+    <p class="tagline">a tiny exchange: three market makers, a crowd of noise traders, and sometimes someone who knows something</p>
+  </div>
+  <div class="controls">
+    <label>seed <input id="seed" type="number" min="1" max="999999"></label>
+    <button id="restart" title="start a fresh market from this seed">restart</button>
+    <button id="pause" title="space also works">pause</button>
+    <label>speed
+      <select id="speed">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="8">8x</option>
+        <option value="32">32x</option>
+      </select>
+    </label>
+  </div>
+</header>
+
+<main id="app" hidden>
+  <section class="ladder-panel panel">
+    <h2>book <span class="hint">click a side to place a limit order</span></h2>
+    <div id="ladder"></div>
+  </section>
+
+  <section class="center-panel">
+    <div class="panel chart-panel">
+      <h2>market
+        <span class="legend">
+          <span class="swatch mid"></span>mid
+          <span class="swatch fair"></span>fair value
+          <span class="swatch episode"></span>informed flow
+        </span>
+      </h2>
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="panel desks-panel">
+      <h2>the desks</h2>
+      <table id="desks">
+        <thead><tr><th>desk</th><th>pos</th><th>volume</th><th>p&amp;l</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="side-panel">
+    <div class="panel user-panel">
+      <h2>your desk</h2>
+      <div id="user-stats" class="user-stats"></div>
+      <div class="entry">
+        <label>qty <input id="qty" type="number" value="10" min="1" max="500"></label>
+        <button id="buy" class="buy">buy mkt</button>
+        <button id="sell" class="sell">sell mkt</button>
+      </div>
+      <div id="orders" class="orders"></div>
+    </div>
+    <div class="panel tape-panel">
+      <h2>tape</h2>
+      <ul id="tape"></ul>
+    </div>
+  </section>
+</main>
+
+<div id="loading" class="panel notice">loading the engine...</div>
+
+<details class="about panel">
+  <summary>what am I looking at?</summary>
+  <p>This is a working limit order book. The matching engine is written in Rust,
+  compiled to WebAssembly, and runs entirely in your browser tab: price-time
+  priority, partial fills, cancels, self-match prevention, the works. Every
+  order you see placed or filled went through it.</p>
+
+  <p>The price is anchored to a hidden fair value that follows a random walk.
+  Twenty noise traders push orders at the book and lean gently toward fair
+  value, which is what keeps price and value tethered. Three market makers
+  quote both sides and try to earn the spread. <b>mm-fixed</b> quotes a constant
+  spread around the mid and nothing else. <b>mm-skew</b> shifts its quotes
+  against its inventory so it never sits on a big position. <b>mm-wary</b> does
+  that too, and also watches order flow: when the flow turns one-sided it
+  widens, and past a threshold it pulls its quotes and walks away.</p>
+
+  <p>Every so often the chart shades: an informed trader has shown up who can
+  see where fair value is going, and leans on the market until the move is
+  done. This is the interesting part. Watch the desks table during a shaded
+  stretch: the informed trader gets paid, and whoever was quoting tight
+  spreads takes the other side of a trade they would not have chosen. Over a
+  long session mm-fixed bleeds, mm-skew roughly breaks even, and mm-wary,
+  which trades the least, is usually the only maker in the green. That is
+  adverse selection, and nobody scripted it: it falls out of the simulation.</p>
+
+  <p>You have a desk too. Click a side of the book to rest a limit order at
+  that price, or hit the market buttons. One honest way to make money: when an
+  episode starts, figure out its direction from the tape and trade with it
+  before the crowd catches on. Another: quote both sides in a calm stretch and
+  earn the spread like the makers do, then get out of the way when the shading
+  starts. Your fills print on the tape with a marker.</p>
+
+  <p>What this toy leaves out, so you don't have to wonder: latency (everyone
+  sees the book at the same instant), fees and rebates, more than one
+  instrument, real order-to-trade ratios, and any claim that the flow model
+  matches real markets. The matching itself is not simplified. Runs are
+  deterministic: the same seed always produces the same market, tick for
+  tick.</p>
+
+  <p class="fine">Numbers are in dollars with a one-cent tick; sizes are lots.
+  Source, tests, and native benchmarks: <a id="repo-link" href="https://github.com/MathMaster1296/pit">github.com/MathMaster1296/pit</a>.</p>
+</details>
+
+<footer>
+  <span id="perf"></span>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

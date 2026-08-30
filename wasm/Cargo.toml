@@ -1,0 +1,12 @@
+[package]
+name = "pit-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pit-sim = { path = "../sim" }
+pit-engine = { path = "../engine" }
+wasm-bindgen = "0.2"
