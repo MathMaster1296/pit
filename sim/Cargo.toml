@@ -1,0 +1,7 @@
+[package]
+name = "pit-sim"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pit-engine = { path = "../engine" }
