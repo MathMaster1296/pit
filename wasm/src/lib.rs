@@ -22,6 +22,7 @@ fn owner_code(owner: u16) -> f64 {
         pit_sim::MAKER_FIXED => 3.0,
         pit_sim::MAKER_SKEW => 4.0,
         pit_sim::MAKER_WARY => 5.0,
+        pit_sim::BOT => 7.0,
         _ => 6.0,
     }
 }
@@ -120,12 +121,13 @@ impl PitSim {
     }
 
     /// Per-desk book state: [cash, inventory, volume, pnl] for the user, the
-    /// informed trader, the three makers, and the noise crowd, in that order.
-    /// Cash and pnl are in tick units.
+    /// scripted bot, the informed trader, the three makers, and the noise
+    /// crowd, in that order. Cash and pnl are in tick units.
     pub fn accounts(&self) -> Vec<f64> {
-        let mut out = Vec::with_capacity(6 * 4);
+        let mut out = Vec::with_capacity(7 * 4);
         let owners = [
             pit_sim::USER,
+            pit_sim::BOT,
             pit_sim::INFORMED,
             pit_sim::MAKER_FIXED,
             pit_sim::MAKER_SKEW,
@@ -165,6 +167,32 @@ impl PitSim {
     pub fn user_orders(&self) -> Vec<f64> {
         let mut out = Vec::new();
         for (id, s, p, q) in self.sim.user_open_orders() {
+            out.push(id as f64);
+            out.push(if s == Side::Buy { 1.0 } else { 0.0 });
+            out.push(p as f64);
+            out.push(q as f64);
+        }
+        out
+    }
+
+    // The bot lab's hands: identical shape to the user's, separate desk.
+
+    pub fn bot_limit(&mut self, buy: bool, price: u32, qty: u32) -> f64 {
+        self.sim.bot_limit(side(buy), price, qty) as f64
+    }
+
+    pub fn bot_market(&mut self, buy: bool, qty: u32) -> f64 {
+        self.sim.bot_market(side(buy), qty) as f64
+    }
+
+    pub fn bot_cancel(&mut self, id: f64) -> bool {
+        self.sim.bot_cancel(id as u64)
+    }
+
+    /// [id, isBuy, price, qty] per open bot order.
+    pub fn bot_orders(&self) -> Vec<f64> {
+        let mut out = Vec::new();
+        for (id, s, p, q) in self.sim.bot_open_orders() {
             out.push(id as f64);
             out.push(if s == Side::Buy { 1.0 } else { 0.0 });
             out.push(p as f64);

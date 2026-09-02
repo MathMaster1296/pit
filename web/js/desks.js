@@ -3,6 +3,7 @@ import { money, lots } from './fmt.js';
 // Order matches the accounts() array from the wasm side.
 const DESKS = [
   { name: 'you', cls: 'you-row', tip: 'your desk. cash plus position, marked to the mid.' },
+  { name: 'your bot', cls: 'bot-row', tip: 'the desk you scripted in the bot lab below' },
   { name: 'informed', tip: 'shows up during the shaded episodes and can see where fair value is headed' },
   { name: 'mm-fixed', tip: 'quotes a constant spread around the mid, no matter what is happening' },
   { name: 'mm-skew', tip: 'shifts its quotes against its inventory so a position never builds up' },
@@ -63,8 +64,8 @@ export class Desks {
         drawSpark(row);
       }
     }
-    setBadge(this.rows[1].badge, informedActive ? 'active' : '', true);
-    setBadge(this.rows[4].badge, waryIn ? '' : 'away', false);
+    setBadge(this.rows[2].badge, informedActive ? 'active' : '', true);
+    setBadge(this.rows[5].badge, waryIn ? '' : 'away', false);
   }
 }
 

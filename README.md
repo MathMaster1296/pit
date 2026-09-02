@@ -80,6 +80,35 @@ instead leave resting quotes out through an episode, you will find out
 personally what adverse selection costs, which is the lesson the whole sim
 is built around.
 
+## Or skip the clicking and write a bot
+
+The bot lab at the bottom of the page takes a JavaScript strategy and hires
+it onto the floor as a real desk. It runs once per tick through the same
+matching engine as everything else, appears in the desks table as "your bot"
+with its own p&l and sparkline, and gets fired on its first uncaught
+exception, which feels about right. A strategy is just a function body:
+
+```js
+// quote both sides at the touch, size 5
+const size = 5;
+let haveBid = false, haveAsk = false;
+for (const o of view.orders) {
+  const stale = (o.side === 'buy' && o.price !== view.bid) ||
+                (o.side === 'sell' && o.price !== view.ask);
+  if (stale) { api.cancel(o.id); continue; }
+  if (o.side === 'buy') haveBid = true; else haveAsk = true;
+}
+if (!haveBid && view.bid) api.limit('buy', view.bid, size);
+if (!haveAsk && view.ask) api.limit('sell', view.ask, size);
+```
+
+You get `view` (book, position, your orders, this tick's trades), `api`
+(limit, market, cancel, capped at 6 actions a tick), and a `state` object
+that survives between ticks. There are presets to start from, including
+exactly the naive quoter above so you can watch yourself get adversely
+selected. The standing challenge: beat mm-wary's p&l over a long run
+without reading anything the other desks can't see.
+
 ## The engine
 
 `engine/` is a standalone price-time priority matching engine with no

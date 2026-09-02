@@ -41,6 +41,7 @@
   <section class="ladder-panel panel">
     <h2>book <span class="hint">click a side to place a limit order</span></h2>
     <div id="ladder"></div>
+    <canvas id="depth" title="cumulative depth: how much is resting at or better than each price"></canvas>
   </section>
 
   <section class="center-panel">
@@ -92,6 +93,29 @@
 <div id="loading" class="panel notice">loading the engine...</div>
 <div id="toasts" aria-live="polite"></div>
 
+<section class="bot-lab panel">
+  <h2>bot lab <span class="hint">write a desk in javascript. it trades for real, against everyone above.</span></h2>
+  <div class="bot-controls">
+    <label>preset
+      <select id="bot-preset">
+        <option value="template" selected>blank template</option>
+        <option value="join the touch">join the touch</option>
+        <option value="skew clone">skew clone</option>
+        <option value="momentum">momentum</option>
+      </select>
+    </label>
+    <button id="bot-run">hire bot</button>
+    <span id="bot-status"></span>
+  </div>
+  <textarea id="bot-code" spellcheck="false" rows="16" aria-label="bot strategy code"></textarea>
+  <p class="fine">Your code runs once per tick through the same matching engine as
+  every other desk, and shows up as "your bot" in the table with its own p&amp;l.
+  Caps: 6 actions per tick, 200 lots per order, and an exception gets the bot
+  fired on the spot. The presets are honest starting points, not answers: try
+  to beat mm-wary over a long stretch, and mind the shaded episodes. The code
+  stays in your browser and survives reloads.</p>
+</section>
+
 <details class="about panel">
   <summary>how to play</summary>
   <p>Everything runs in your tab. The seed box picks the run: the same seed
@@ -118,6 +142,10 @@
   Third, leave your maker quotes out during an episode on purpose, and watch
   what getting picked off costs. That last one is the reason mm-wary
   exists.</p>
+
+  <p>When clicking gets old, scroll down to the bot lab and put your strategy
+  in code. Your bot becomes a real desk on this floor, and the only real
+  question in this whole toy is whether it can out-trade mm-wary.</p>
 
   <p>If your first market order shows a small loss right away, that is not a
   bug. You paid the spread, which is the thing everyone else here is fighting

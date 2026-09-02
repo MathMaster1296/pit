@@ -24,6 +24,10 @@ pub const MAKER_SKEW: Owner = 4;
 pub const MAKER_WARY: Owner = 5;
 pub const NOISE_FIRST: Owner = 6;
 pub const NOISE_COUNT: u16 = 20;
+/// The visitor-scripted bot from the web bot lab. It trades through the
+/// same engine as everyone else; the only thing special about it is that
+/// its brain lives in JavaScript.
+pub const BOT: Owner = NOISE_FIRST + NOISE_COUNT;
 
 const START_FAIR: f64 = 10_000.0; // ticks; a tick is a cent, so $100.00
 const CALM_SIGMA: f64 = 0.035;
@@ -93,6 +97,7 @@ pub struct Sim {
     pub episodes_seen: u32,
     noise_orders: VecDeque<(OrderId, u64)>,
     user_orders: Vec<OrderId>,
+    bot_orders: Vec<OrderId>,
     tape: Vec<Trade>,
     series: Vec<Sample>,
     ewma_flow: f64,
@@ -115,12 +120,13 @@ impl Sim {
                 Maker::new(MAKER_SKEW, Brain::Skew),
                 Maker::new(MAKER_WARY, Brain::Wary),
             ],
-            accounts: vec![Account::default(); (NOISE_FIRST + NOISE_COUNT) as usize],
+            accounts: vec![Account::default(); BOT as usize + 1],
             episode: None,
             episode_cooldown: 0,
             episodes_seen: 0,
             noise_orders: VecDeque::new(),
             user_orders: Vec::new(),
+            bot_orders: Vec::new(),
             tape: Vec::new(),
             series: Vec::new(),
             ewma_flow: 0.0,
@@ -255,6 +261,7 @@ impl Sim {
         self.pending_flow = 0.0;
 
         self.user_orders.retain(|id| self.book.is_live(*id));
+        self.bot_orders.retain(|id| self.book.is_live(*id));
         self.series.push(Sample {
             tick: self.tick,
             mid: self.mid,
@@ -322,7 +329,7 @@ impl Sim {
     /// a single crowd.
     pub fn noise_total(&self) -> Account {
         let mut total = Account::default();
-        for a in &self.accounts[NOISE_FIRST as usize..] {
+        for a in &self.accounts[NOISE_FIRST as usize..BOT as usize] {
             total.cash += a.cash;
             total.inventory += a.inventory;
             total.volume += a.volume;
@@ -365,12 +372,43 @@ impl Sim {
         filled
     }
 
+    /// Cancels only orders the user actually owns. Without the ownership
+    /// check, anyone with the browser console open could cancel the market
+    /// makers' quotes, which is a fun exploit but the wrong kind of fun.
     pub fn user_cancel(&mut self, id: OrderId) -> bool {
-        self.book.cancel(id)
+        self.user_orders.contains(&id) && self.book.cancel(id)
     }
 
     pub fn user_open_orders(&self) -> Vec<(OrderId, Side, Price, Qty)> {
         self.user_orders
+            .iter()
+            .filter_map(|&id| self.book.resting(id).map(|(s, p, q)| (id, s, p, q)))
+            .collect()
+    }
+
+    // The scripted bot's hands. Same shape as the user's, same rules.
+
+    pub fn bot_limit(&mut self, side: Side, price: Price, qty: Qty) -> OrderId {
+        let id = self.book.limit(side, price, qty, BOT);
+        self.settle();
+        if self.book.is_live(id) {
+            self.bot_orders.push(id);
+        }
+        id
+    }
+
+    pub fn bot_market(&mut self, side: Side, qty: Qty) -> Qty {
+        let filled = self.book.market(side, qty, BOT);
+        self.settle();
+        filled
+    }
+
+    pub fn bot_cancel(&mut self, id: OrderId) -> bool {
+        self.bot_orders.contains(&id) && self.book.cancel(id)
+    }
+
+    pub fn bot_open_orders(&self) -> Vec<(OrderId, Side, Price, Qty)> {
+        self.bot_orders
             .iter()
             .filter_map(|&id| self.book.resting(id).map(|(s, p, q)| (id, s, p, q)))
             .collect()
@@ -468,7 +506,7 @@ mod tests {
         }
         let mut cash = 0i64;
         let mut inv = 0i64;
-        for owner in 0..(NOISE_FIRST + NOISE_COUNT) {
+        for owner in 0..=BOT {
             let a = sim.account(owner);
             cash += a.cash;
             inv += a.inventory;
@@ -477,6 +515,26 @@ mod tests {
         // inventory offsets what those seeds sold or bought; cash still nets.
         assert_eq!(cash, 0);
         let _ = inv;
+    }
+
+    #[test]
+    fn you_can_only_cancel_your_own_orders() {
+        let mut sim = Sim::new(5);
+        sim.step();
+        // Find somebody else's resting order via the book depth, then try to
+        // cancel every plausible id. None of them should work for the user
+        // or the bot unless the order is actually theirs.
+        let user_id = sim.user_limit(Side::Buy, 9_000, 5); // deep, rests
+        let bot_id = sim.bot_limit(Side::Buy, 8_999, 5);
+        assert!(!sim.user_cancel(bot_id));
+        assert!(!sim.bot_cancel(user_id));
+        for id in 1..200 {
+            if id != user_id {
+                assert!(!sim.user_cancel(id), "user canceled foreign order {id}");
+            }
+        }
+        assert!(sim.user_cancel(user_id));
+        assert!(sim.bot_cancel(bot_id));
     }
 
     #[test]

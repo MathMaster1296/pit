@@ -3,6 +3,8 @@ import { Ladder } from './ladder.js';
 import { Chart } from './chart.js';
 import { Tape } from './tape.js';
 import { Desks } from './desks.js';
+import { Depth } from './depth.js';
+import { BotLab } from './botlab.js';
 import { money, lots, price } from './fmt.js';
 
 const $ = (id) => document.getElementById(id);
@@ -54,6 +56,8 @@ function notify(text, ttl = 3500) {
 const chart = new Chart($('chart'));
 const tape = new Tape($('tape'));
 const desks = new Desks($('desks'));
+const depthChart = new Depth($('depth'));
+const botLab = new BotLab(() => sim, notify);
 const ladder = new Ladder($('ladder'), (side, px) => {
   if (!sim) return;
   placeLimit(side === 'buy', px);
@@ -88,6 +92,7 @@ function restart(newSeed) {
   chart.reset();
   tape.reset();
   desks.reset();
+  botLab.onRestart();
   lastTradePx = 0;
   // Run the market in before showing it, so the chart opens with history
   // instead of a lonely dot. The pre-open trades don't hit the tape. A batch
@@ -101,16 +106,18 @@ function restart(newSeed) {
   render();
 }
 
-function render() {
+function render(pending) {
   const status = sim.status();
-  const trades = sim.trades();
+  const trades = pending ?? Array.from(sim.trades());
   const orders = sim.user_orders();
   const accounts = sim.accounts();
+  const depth = sim.depth(16);
   lastStatus = status;
   lastAccounts = accounts;
   chart.push(sim.series(), trades);
   chart.draw();
-  ladder.draw(sim.depth(16), status, orders);
+  ladder.draw(depth, status, orders);
+  depthChart.draw(depth, status);
   tape.push(trades);
   desks.draw(accounts, status);
   drawUser(accounts, orders);
@@ -199,8 +206,18 @@ function stat(k, v, cls = '') {
 
 function frame() {
   if (sim && !paused) {
-    sim.step(Number($('speed').value));
-    render();
+    // Tick one at a time so the scripted bot gets a turn every tick, the
+    // same cadence the Rust desks get.
+    const speed = Number($('speed').value);
+    const pending = [];
+    for (let i = 0; i < speed; i++) {
+      sim.step(1);
+      const t = sim.trades();
+      if (t.length) lastTradePx = t[t.length - 5];
+      for (const v of t) pending.push(v);
+      botLab.tick(t, lastTradePx);
+    }
+    render(pending);
   }
   requestAnimationFrame(frame);
 }
