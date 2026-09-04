@@ -42,9 +42,9 @@ makers respond differently:
 
 Over a long session mm-fixed bleeds, and while mm-skew and mm-wary both end
 up green, mm-wary gets there on a quarter of the volume, which means it
-earns several times more per lot traded. Selectivity, not turnover, is the
-edge. Nothing scripts that outcome; it falls out of who gets picked off
-during the shaded stretches. Here is a 500k-tick run on seed 7:
+earns several times more per lot traded. The edge is in choosing which
+fills to take. Nothing scripts that outcome; it falls out of who gets picked
+off during the shaded stretches. Here is a 500k-tick run on seed 7:
 
 ```
 seed 7, 500000 ticks, 208 informed episodes, 51 halts
@@ -78,6 +78,11 @@ cancel button, your fills print on the tape tagged "you", and your P&L is
 marked to the mid. Pause with the button or the space bar, use the speed
 control to fast forward through quiet stretches, and use share to copy a
 link that replays the run you are watching.
+
+The page has a light theme and a blue/orange palette for anyone who can't
+separate red from green, and buys and sells are also shape-coded (up and
+down marks) so the side never rides on color alone. Everything works from
+the keyboard, including resting orders in the book.
 
 Two trades worth trying. In a calm stretch, rest a buy a couple of ticks
 below the mid and a sell a couple above, and earn the spread the way the
@@ -182,8 +187,8 @@ wasm-pack build wasm --target web --release --out-dir ../web/pkg --no-typescript
 python3 -m http.server -d web 8000
 ```
 
-Then open http://localhost:8000. The frontend is plain ES modules and canvas,
-no framework, no build step beyond the wasm.
+Then open http://localhost:8000. The frontend is plain ES modules and canvas;
+there is no framework and no build step beyond the wasm.
 
 ## What it deliberately leaves out
 
@@ -191,8 +196,8 @@ There is no latency: every agent sees the book at the same instant, so there
 is no queue racing and no speed advantage to model. There are no fees or
 rebates, and only one instrument trades. The flow model is a toy, and the
 informed trader's edge is artificial (it reads the future drift straight from
-the simulator). The matching itself is not simplified, but everything around
-it is, and numbers coming out of the sim describe this sim, not any real
+the simulator). Everything around the matching is simplified; the matching
+itself is exact. Numbers coming out of the sim describe this sim and no real
 market.
 
 ## Reading that pairs well with this

@@ -225,6 +225,7 @@ function drawUser(accounts, orders) {
     const cancel = document.createElement('button');
     cancel.textContent = 'x';
     cancel.title = 'cancel';
+    cancel.setAttribute('aria-label', `cancel ${label.textContent}`);
     cancel.addEventListener('click', () => {
       sim.user_cancel(id);
       render();
@@ -299,11 +300,49 @@ function wire() {
     );
   });
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+    // Space pauses, unless focus is on something that uses space itself.
+    const busy =
+      e.target instanceof Element &&
+      e.target.closest('input, textarea, select, button, [role="button"], summary');
+    if (e.code === 'Space' && !busy) {
       e.preventDefault();
       togglePause();
     }
   });
+
+  $('theme').addEventListener('click', () => {
+    const root = document.documentElement;
+    root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+    remember('pit-theme', root.dataset.theme);
+    applyPrefs();
+  });
+  $('palette').addEventListener('click', () => {
+    const root = document.documentElement;
+    if (root.dataset.palette === 'cb') delete root.dataset.palette;
+    else root.dataset.palette = 'cb';
+    remember('pit-palette', root.dataset.palette || '');
+    applyPrefs();
+  });
+}
+
+function remember(key, value) {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    // no storage means the preference lasts for this visit only
+  }
+}
+
+// Sync the preference buttons and every canvas that caches palette colors.
+function applyPrefs() {
+  const root = document.documentElement;
+  $('theme').textContent = `theme: ${root.dataset.theme === 'light' ? 'light' : 'dark'}`;
+  $('palette').textContent =
+    `colors: ${root.dataset.palette === 'cb' ? 'blue/orange' : 'green/red'}`;
+  chart.refreshColors();
+  depthChart.refreshColors();
+  if (sim) render();
 }
 
 function marketOrder(buy) {
@@ -336,6 +375,10 @@ init()
     $('loading').hidden = true;
     $('app').hidden = false;
     wire();
+    applyPrefs();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      $('speed').value = '1';
+    }
     const fromHash = Math.floor(Number(location.hash.slice(1)));
     restart(fromHash >= 1 ? fromHash : randomSeed());
     requestAnimationFrame(frame);

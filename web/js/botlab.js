@@ -66,7 +66,8 @@ if (!haveAsk) api.limit('sell', ask, size);
 `,
 
   momentum: `// read the tape: when the flow runs one-sided, go with it,
-// and flatten when it goes quiet. this is a taker, not a maker.
+// and flatten when it goes quiet. this bot pays the spread on every
+// trade, so it has to be right about direction to come out ahead.
 state.flow = (state.flow ?? 0) * 0.97;
 for (const t of view.trades) {
   state.flow += t.side === 'buy' ? t.qty : -t.qty;

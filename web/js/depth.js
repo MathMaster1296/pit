@@ -6,6 +6,10 @@ export class Depth {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.refreshColors();
+  }
+
+  refreshColors() {
     const css = getComputedStyle(document.body);
     this.green = css.getPropertyValue('--green');
     this.red = css.getPropertyValue('--red');

@@ -19,8 +19,13 @@ export class Tape {
       const bot = trades[i + 4] === 7 || trades[i + 5] === 7;
       const li = document.createElement('li');
       const left = document.createElement('span');
-      left.textContent = `${trades[i + 2]} @ ${price(trades[i + 1])}`;
+      // The arrow carries the side for anyone who can't tell the colors apart.
+      left.textContent = `${buy ? '▲' : '▼'} ${trades[i + 2]} @ ${price(trades[i + 1])}`;
       left.style.color = buy ? 'var(--green)' : 'var(--red)';
+      li.setAttribute(
+        'aria-label',
+        `${buy ? 'buy' : 'sell'} ${trades[i + 2]} at ${price(trades[i + 1])}${you ? ', yours' : ''}`,
+      );
       li.append(left);
       if (you || bot) {
         const tag = document.createElement('span');

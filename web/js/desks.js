@@ -33,6 +33,7 @@ export class Desks {
       spark.className = 'spark';
       spark.title = 'recent p&l';
       const canvas = document.createElement('canvas');
+      canvas.setAttribute('aria-hidden', 'true'); // the p&l cell has the number
       spark.append(canvas);
       const badge = document.createElement('td');
       tr.append(name, pos, vol, pnl, spark, badge);
@@ -69,10 +70,8 @@ export class Desks {
   }
 }
 
-let sparkColor = null;
-
 // Each sparkline scales to its own window, so it shows the shape of the
-// p&l, not its size. The pnl column next door has the size.
+// p&l over time. The pnl column next door has the size.
 function drawSpark(row) {
   const dpr = window.devicePixelRatio || 1;
   const c = row.canvas;
@@ -97,10 +96,7 @@ function drawSpark(row) {
     lo -= 1;
     hi += 1;
   }
-  if (!sparkColor) {
-    sparkColor = getComputedStyle(document.body).getPropertyValue('--muted');
-  }
-  ctx.strokeStyle = sparkColor;
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--muted');
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let i = 0; i < hist.length; i++) {

@@ -28,7 +28,7 @@ pub struct Maker {
 }
 
 // Tuning constants. These were arrived at by running `cargo run --release
-// --example session` and staring at the P&L table, not by any deep theory.
+// --example session` across a handful of seeds and staring at the P&L table.
 const HALF_SPREAD: f64 = 1.2;
 const SKEW_PER_LOT: f64 = 0.08;
 const INVENTORY_CAP: i64 = 60;

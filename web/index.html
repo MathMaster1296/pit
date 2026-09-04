@@ -12,6 +12,16 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23101418'/><rect x='2' y='7' width='3' height='7' fill='%234caf7d'/><rect x='6.5' y='3' width='3' height='11' fill='%23e05555'/><rect x='11' y='5' width='3' height='9' fill='%234caf7d'/></svg>">
+<script>
+  // Apply saved display preferences before the first paint so the page
+  // never flashes the wrong theme.
+  try {
+    const theme = localStorage.getItem('pit-theme');
+    const palette = localStorage.getItem('pit-palette');
+    if (theme) document.documentElement.dataset.theme = theme;
+    if (palette) document.documentElement.dataset.palette = palette;
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -34,16 +44,26 @@
       </select>
     </label>
     <button id="today" title="one shared seed per day, same market for everyone">today's market</button>
-    <button id="sound" title="tape clicks and floor alarms, synthesized">sound: off</button>
     <button id="share" title="copy a link that replays this exact run">share</button>
   </div>
+  <div class="controls prefs">
+    <button id="sound" title="tape clicks and floor alarms, synthesized">sound: off</button>
+    <button id="theme" title="dark or light">theme: dark</button>
+    <button id="palette" title="swap green and red for blue and orange">colors: green/red</button>
+  </div>
 </header>
+
+<noscript>
+  <div class="panel notice">This page needs JavaScript and WebAssembly: the
+  whole exchange runs inside your browser, and there is no server to fall
+  back on.</div>
+</noscript>
 
 <main id="app" hidden>
   <section class="ladder-panel panel">
     <h2>book <span class="hint">click a side to place a limit order</span></h2>
     <div id="ladder"></div>
-    <canvas id="depth" title="cumulative depth: how much is resting at or better than each price"></canvas>
+    <canvas id="depth" role="img" aria-label="cumulative depth chart: resting bid quantity to the left of the spread, resting ask quantity to the right" title="cumulative depth: how much is resting at or better than each price"></canvas>
   </section>
 
   <section class="center-panel">
@@ -60,7 +80,7 @@
           <span class="swatch episode"></span>informed flow
         </span>
       </h2>
-      <canvas id="chart"></canvas>
+      <canvas id="chart" role="img" aria-label="price chart: the traded mid as a solid line, the hidden fair value dashed, each trade as a small mark, and shaded stretches while informed flow is active. the desks table below carries the numbers."></canvas>
     </div>
     <div class="panel desks-panel">
       <h2>the desks</h2>
@@ -120,9 +140,9 @@
   <p class="fine">Your code runs once per tick through the same matching engine as
   every other desk, and shows up as "your bot" in the table with its own p&amp;l.
   Caps: 6 actions per tick, 200 lots per order, and an exception gets the bot
-  fired on the spot. The presets are honest starting points, not answers: try
-  to beat mm-wary over a long stretch, and mind the shaded episodes. The code
-  stays in your browser and survives reloads.</p>
+  fired on the spot. The presets are starting points, and none of them wins
+  as written: try to beat mm-wary over a long stretch, and mind the shaded
+  episodes. The code stays in your browser and survives reloads.</p>
 </section>
 
 <details class="about panel">
@@ -169,6 +189,13 @@
   <p>If your first market order shows a small loss right away, that is not a
   bug. You paid the spread, which is the thing everyone else here is fighting
   over.</p>
+
+  <p>A few things for comfort. The theme button switches to a light page, and
+  the colors button swaps green and red for blue and orange if you have
+  trouble telling them apart (buys also point up and sells point down on the
+  tape and the chart, so the side never depends on color alone). Every
+  control works from the keyboard, including the book: tab to a price and
+  press enter to rest an order there. Both preferences are remembered.</p>
 </details>
 
 <details class="about panel">

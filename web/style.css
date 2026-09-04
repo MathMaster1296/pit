@@ -3,7 +3,7 @@
   --panel: #161c23;
   --panel-edge: #232c36;
   --text: #cdd7e1;
-  --muted: #75818e;
+  --muted: #8b97a4;
   --green: #4caf7d;
   --green-dim: #2c4f3d;
   --red: #e05555;
@@ -11,7 +11,44 @@
   --you: #e8b34b;
   --fair: #7f9bd1;
   --episode: rgba(224, 85, 85, 0.10);
+  --bar-alpha: 0.28;
+  color-scheme: dark;
   font-size: 14px;
+}
+
+/* A light theme for people reading on a phone in daylight, or who just
+   find dark screens hard on the eyes. Same accents, deepened for paper. */
+:root[data-theme="light"] {
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --panel-edge: #d9e0e7;
+  --text: #1d2530;
+  --muted: #5b6874;
+  --green: #1e7a4f;
+  --green-dim: #bfe3cf;
+  --red: #b23a3a;
+  --red-dim: #f0cfcf;
+  --you: #9c6a1a;
+  --fair: #3b64b3;
+  --episode: rgba(178, 58, 58, 0.10);
+  --bar-alpha: 0.7;
+  color-scheme: light;
+}
+
+/* Blue for bids, orange for asks: the usual fix for red/green colorblindness,
+   which is common enough that real trading platforms ship this toggle. */
+:root[data-palette="cb"] {
+  --green: #5b9be0;
+  --green-dim: #2b4a6b;
+  --red: #e6923d;
+  --red-dim: #5a3d22;
+  --episode: rgba(230, 146, 61, 0.12);
+}
+:root[data-theme="light"][data-palette="cb"] {
+  --green: #2b6cb0;
+  --green-dim: #c9dcf2;
+  --red: #a8500e;
+  --red-dim: #f3d9c2;
 }
 
 * { box-sizing: border-box; }
@@ -70,6 +107,27 @@ button.sell { color: var(--red); }
 button:disabled { opacity: 0.45; cursor: default; }
 button:disabled:hover { border-color: var(--panel-edge); }
 #flatten { color: var(--you); }
+
+/* Keyboard users get a ring they can actually see. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--you);
+  outline-offset: 2px;
+}
+
+/* Fingers are wider than mouse pointers. */
+@media (pointer: coarse) {
+  #ladder .cell { min-height: 2em; padding-top: 4px; }
+  button { padding: 8px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+}
 
 main {
   display: grid;
@@ -132,7 +190,7 @@ main {
   position: absolute;
   top: 1px; bottom: 1px;
   z-index: 0;
-  opacity: 0.28;
+  opacity: var(--bar-alpha);
 }
 #ladder .bid .bar { right: 0; background: var(--green-dim); }
 #ladder .ask .bar { left: 0; background: var(--red-dim); }

@@ -20,6 +20,17 @@ export class Ladder {
       ask.addEventListener('click', () => {
         if (ask.dataset.px) onClick('sell', Number(ask.dataset.px));
       });
+      // The cells are real controls, so they should work from a keyboard.
+      for (const c of [bid, ask]) {
+        c.tabIndex = 0;
+        c.setAttribute('role', 'button');
+        c.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            c.click();
+          }
+        });
+      }
       el.append(bid, px, ask);
       this.rows.push({ bid, px, ask });
     }
@@ -84,6 +95,7 @@ function setSide(el, qty, mineQty, maxQty, px) {
     el.title = px > 0
       ? `rest a ${el.classList.contains('ask') ? 'sell' : 'buy'} limit at ${price(px)}`
       : '';
+    el.setAttribute('aria-label', el.title);
   }
   const [bar, a, b] = el.children;
   const qtySpan = el.classList.contains('ask') ? a : b;

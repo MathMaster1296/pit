@@ -10,6 +10,11 @@ export class Chart {
     this.ctx = canvas.getContext('2d');
     this.samples = [];
     this.trades = [];
+    this.refreshColors();
+  }
+
+  /// Re-read the palette; called when the viewer switches theme or colors.
+  refreshColors() {
     const css = getComputedStyle(document.body);
     this.color = {
       mid: css.getPropertyValue('--text'),
@@ -106,14 +111,28 @@ export class Chart {
     line(ctx, this.samples, x, y, (s) => s.fair, this.color.fair, [4, 4]);
     line(ctx, this.samples, x, y, (s) => s.mid, this.color.mid, []);
 
+    // Buys point up, sells point down, so the side reads even without the
+    // color. Your own fills are squares in amber.
     for (const t of this.trades) {
+      const tx = x(t.tick);
+      const ty = y(t.px);
       if (t.you) {
         ctx.fillStyle = this.color.you;
-        ctx.fillRect(x(t.tick) - 2.5, y(t.px) - 2.5, 5, 5);
-      } else {
-        ctx.fillStyle = t.buy ? this.color.buy : this.color.sell;
-        ctx.fillRect(x(t.tick) - 1, y(t.px) - 1, 2, 2);
+        ctx.fillRect(tx - 2.5, ty - 2.5, 5, 5);
+        continue;
       }
+      ctx.fillStyle = t.buy ? this.color.buy : this.color.sell;
+      ctx.beginPath();
+      if (t.buy) {
+        ctx.moveTo(tx, ty - 2);
+        ctx.lineTo(tx + 2, ty + 1.5);
+        ctx.lineTo(tx - 2, ty + 1.5);
+      } else {
+        ctx.moveTo(tx, ty + 2);
+        ctx.lineTo(tx + 2, ty - 1.5);
+        ctx.lineTo(tx - 2, ty - 1.5);
+      }
+      ctx.fill();
     }
   }
 }
