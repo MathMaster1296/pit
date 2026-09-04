@@ -217,6 +217,17 @@ main {
   height: 260px;
   display: block;
 }
+.chart-panel canvas[hidden] { display: none; }
+
+h2 button.mini {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0 7px;
+  margin-left: 8px;
+}
 
 .legend { font-weight: 400; text-transform: none; letter-spacing: 0; display: flex; gap: 10px; align-items: center; }
 .swatch { display: inline-block; width: 14px; height: 3px; margin-right: 4px; vertical-align: middle; }

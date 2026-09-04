@@ -45,6 +45,23 @@
     </label>
     <button id="today" title="one shared seed per day, same market for everyone">today's market</button>
     <button id="share" title="copy a link that replays this exact run">share</button>
+    <label>volatility
+      <select id="vol-mult" title="scales the calm random walk of fair value">
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="2">2x</option>
+        <option value="3">3x</option>
+      </select>
+    </label>
+    <label>informed flow
+      <select id="inf-mult" title="how often the informed trader shows up">
+        <option value="0">0x</option>
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="2">2x</option>
+        <option value="4">4x</option>
+      </select>
+    </label>
   </div>
   <div class="controls prefs">
     <button id="sound" title="tape clicks and floor alarms, synthesized">sound: off</button>
@@ -73,7 +90,8 @@
         <span id="episode-pill" class="badge hot" hidden
           title="an informed trader is in the market and can see where fair value is headed">informed flow</span>
         <span id="halt-pill" class="badge hot" hidden
-          title="the circuit breaker tripped: trading is stopped and every resting order was purged">halted</span></span>
+          title="the circuit breaker tripped: trading is stopped and every resting order was purged">halted</span>
+        <button id="view-toggle" class="mini" title="switch between the price chart and the book heatmap">view: chart</button></span>
         <span class="legend">
           <span class="swatch mid"></span>mid
           <span class="swatch fair"></span>fair value
@@ -81,6 +99,7 @@
         </span>
       </h2>
       <canvas id="chart" role="img" aria-label="price chart: the traded mid as a solid line, the hidden fair value dashed, each trade as a small mark, and shaded stretches while informed flow is active. the desks table below carries the numbers."></canvas>
+      <canvas id="heatmap" hidden role="img" aria-label="book heatmap: time runs left to right, price top to bottom, and each resting level glows brighter the more size sits on it"></canvas>
     </div>
     <div class="panel desks-panel">
       <h2>the desks</h2>
@@ -129,20 +148,35 @@
       </select>
     </label>
     <button id="bot-run">hire bot</button>
+    <label>latency
+      <select id="bot-latency" title="how many ticks stale your bot's view of the market is">
+        <option value="0" selected>0 ticks</option>
+        <option value="2">2 ticks</option>
+        <option value="5">5 ticks</option>
+        <option value="10">10 ticks</option>
+        <option value="25">25 ticks</option>
+      </select>
+    </label>
     <span id="bot-status"></span>
   </div>
   <textarea id="bot-code" spellcheck="false" rows="16" aria-label="bot strategy code"></textarea>
   <div class="bot-controls">
-    <button id="bot-season" title="backtest the code above against a fresh copy of this seed">run a season</button>
-    <span class="hint">100,000 ticks, headless, done in seconds. the live market keeps running.</span>
+    <button id="bot-season" title="backtest the code above against a fresh copy of this seed, plus a run without you for comparison">run a season</button>
+    <button id="bot-ladder" title="the same season at five different latencies">latency ladder</button>
+    <button id="bot-sweep" title="the same season across eight seeds">seed sweep</button>
+    <button id="bot-share" title="copy a link that carries this code and seed">share bot</button>
+    <span class="hint">each season is 100,000 ticks, headless, about a second. the live market keeps running.</span>
   </div>
   <div id="season-report" class="season" hidden></div>
   <p class="fine">Your code runs once per tick through the same matching engine as
   every other desk, and shows up as "your bot" in the table with its own p&amp;l.
   Caps: 6 actions per tick, 200 lots per order, and an exception gets the bot
-  fired on the spot. The presets are starting points, and none of them wins
-  as written: try to beat mm-wary over a long stretch, and mind the shaded
-  episodes. The code stays in your browser and survives reloads.</p>
+  fired on the spot. The latency dial hands your bot a view of the market from
+  that many ticks ago while its orders still land on the book as it is now,
+  which is roughly what being slow feels like; the built-in desks all run at
+  zero. The presets are starting points, and none of them wins as written:
+  try to beat mm-wary over a long stretch, and mind the shaded episodes. The
+  code stays in your browser and survives reloads.</p>
 </section>
 
 <details class="about panel">
@@ -180,11 +214,24 @@
   the same market for everyone on earth, if you want something to compare
   runs on.</p>
 
+  <p>The view button on the market panel swaps the price chart for a book
+  heatmap: time runs left to right, price top to bottom, and every resting
+  level glows by its size, so you can watch liquidity pull away before a move
+  and pile back in after. The volatility and informed flow dials in the
+  header change the weather; everything was tuned at 1x, and turning them up
+  is for watching the desks suffer on purpose.</p>
+
   <p>When clicking gets old, scroll down to the bot lab and put your strategy
   in code. Your bot becomes a real desk on this floor, and the only real
-  question in this whole toy is whether it can out-trade mm-wary. The "run a
-  season" button backtests your code against 100,000 ticks of a fresh copy
-  of the current seed and hands you a report card, equity curve included.</p>
+  question in this whole toy is whether it can out-trade mm-wary. "Run a
+  season" backtests your code against 100,000 ticks of a fresh copy of the
+  current seed and hands you a report card with an equity curve, plus a run
+  of the same market without you, so you can see what your presence did.
+  "Latency ladder" runs the same season with your bot 0, 2, 5, 10, and 25
+  ticks behind the market, which is the honest way to find out what speed is
+  worth to you. "Seed sweep" runs eight different markets, because one seed
+  can flatter anyone. And "share bot" copies a link that carries your code
+  and seed, so someone else can rerun your exact season.</p>
 
   <p>If your first market order shows a small loss right away, that is not a
   bug. You paid the spread, which is the thing everyone else here is fighting

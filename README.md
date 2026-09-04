@@ -79,6 +79,12 @@ marked to the mid. Pause with the button or the space bar, use the speed
 control to fast forward through quiet stretches, and use share to copy a
 link that replays the run you are watching.
 
+The market panel can swap its price chart for a book heatmap (time across,
+price down, resting size as brightness), which is the view that shows
+liquidity pulling away before a move. Two dials in the header scale the
+calm volatility and how often the informed trader shows up; everything was
+tuned at 1x, and the other settings exist for watching the desks suffer.
+
 The page has a light theme and a blue/orange palette for anyone who can't
 separate red from green, and buys and sells are also shape-coded (up and
 down marks) so the side never rides on color alone. Everything works from
@@ -122,9 +128,20 @@ get adversely selected.
 
 When the strategy feels ready, hit "run a season": it backtests your exact
 code against 100,000 ticks of a fresh copy of the current seed, headless,
-in a few seconds, and reports every desk's p&l, your p&l per lot, your max
-drawdown, and an equity curve of your bot racing mm-wary. The standing
-challenge: beat mm-wary over a season without reading anything the other
+in about a second, and reports every desk's p&l, your p&l per lot, your max
+drawdown, a Sharpe-ish ratio, and an equity curve of your bot racing
+mm-wary. It also runs the same market once more without you, so the report
+can say what your presence did to mm-wary's p&l. Two more buttons do the
+things a careful person would do next. "Latency ladder" reruns the season
+with your bot 0, 2, 5, 10, and 25 ticks behind the market (your view goes
+stale by that much while your orders still land on the live book), and
+puts a dollar figure on what speed is worth to your strategy. "Seed sweep"
+reruns it across eight seeds and reports the win rate against mm-wary with
+the mean, worst, and best outcomes, because one seed can flatter anyone.
+
+"Share bot" copies a link that carries your code and seed, so anyone who
+opens it gets your exact bot and can rerun your exact season. The standing
+challenge: beat mm-wary across a sweep without reading anything the other
 desks can't see. The "today's market" button gives everyone on earth the
 same seed for the day, if you want a fair fight to compare on.
 

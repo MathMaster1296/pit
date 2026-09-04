@@ -24,7 +24,9 @@ export const PRESETS = {
 //
 // caps: ${ACTION_CAP} actions per tick, ${QTY_CAP} lots per order.
 // an exception fires the bot. orders sent during a trading halt are
-// rejected (they return 0). "run a season" backtests this exact code.
+// rejected (they return 0). the latency dial makes your view stale
+// by that many ticks; the rust desks all run at zero.
+// "run a season" backtests this exact code. "share bot" makes a link.
 
 // example: do nothing, profitably
 `,
@@ -81,6 +83,23 @@ else if (Math.abs(state.flow) < 2 && view.position !== 0) {
 `,
 };
 
+function compile(code) {
+  return new Function('view', 'api', 'state', `"use strict";\n${code}`);
+}
+
+// Bot code travels in the URL as base64url, after the seed and a pipe.
+function encodeCode(code) {
+  return btoa(unescape(encodeURIComponent(code)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function decodeCode(text) {
+  const b64 = text.replace(/-/g, '+').replace(/_/g, '/');
+  return decodeURIComponent(escape(atob(b64)));
+}
+
 export class BotLab {
   constructor(getSim, notify) {
     this.getSim = getSim;
@@ -88,6 +107,7 @@ export class BotLab {
     this.fn = null;
     this.state = {};
     this.running = false;
+    this.lag = { n: 0, buf: [] };
 
     let saved = null;
     try {
@@ -97,6 +117,17 @@ export class BotLab {
     }
     $('bot-code').value = saved || PRESETS.template;
 
+    // A bot that arrived by link wins over the saved one.
+    const linked = location.hash.slice(1).split('|')[1];
+    if (linked) {
+      try {
+        $('bot-code').value = decodeCode(linked);
+        this.status('a bot arrived with this link. read it before you hire it.', 'ok');
+      } catch {
+        this.status('the link carried a bot, but it did not decode', 'err');
+      }
+    }
+
     $('bot-preset').addEventListener('change', () => {
       const p = PRESETS[$('bot-preset').value];
       if (p) {
@@ -104,10 +135,25 @@ export class BotLab {
         this.status('preset loaded, hit hire when ready');
       }
     });
+    $('bot-latency').addEventListener('change', () => {
+      this.lag = { n: Number($('bot-latency').value), buf: [] };
+    });
     $('bot-run').addEventListener('click', () => {
       if (this.running) this.fire('fired. the desk is dark.');
       else this.hire();
     });
+    $('bot-share').addEventListener('click', () => {
+      const seed = location.hash.slice(1).split('|')[0] || '';
+      const url = `${location.origin}${location.pathname}#${seed}|${encodeCode($('bot-code').value)}`;
+      navigator.clipboard.writeText(url).then(
+        () => this.notify('bot link copied. whoever opens it gets your exact code and seed.'),
+        () => this.notify('could not reach the clipboard; the link is in the address bar after you hire'),
+      );
+    });
+  }
+
+  latency() {
+    return Number($('bot-latency').value);
   }
 
   status(text, cls = '') {
@@ -119,7 +165,7 @@ export class BotLab {
   hire() {
     const code = $('bot-code').value;
     try {
-      this.fn = new Function('view', 'api', 'state', `"use strict";\n${code}`);
+      this.fn = compile(code);
     } catch (e) {
       this.status(`won't compile: ${e.message}`, 'err');
       return;
@@ -130,9 +176,13 @@ export class BotLab {
       // fine, it just won't survive a reload
     }
     this.state = {};
+    this.lag = { n: this.latency(), buf: [] };
     this.running = true;
     $('bot-run').textContent = 'fire bot';
-    this.status('on the floor', 'ok');
+    this.status(
+      this.lag.n ? `on the floor, ${this.lag.n} ticks behind the market` : 'on the floor',
+      'ok',
+    );
     this.notify('your bot is on the floor. watch its row in the desks table.');
   }
 
@@ -150,12 +200,13 @@ export class BotLab {
     // A new sim means the bot's orders and position are gone; its brain and
     // employment status carry over.
     this.state = {};
+    this.lag.buf = [];
   }
 
   /// Called once per simulation tick with that tick's raw trade array.
   tick(rawTrades, lastPx) {
     if (!this.running || !this.fn) return;
-    const err = runBotTick(this.getSim(), this.fn, this.state, rawTrades, lastPx);
+    const err = runBotTick(this.getSim(), this.fn, this.state, rawTrades, lastPx, this.lag);
     if (err) {
       this.fire();
       this.status(`crashed and got fired: ${err}`, 'err');
@@ -164,10 +215,7 @@ export class BotLab {
   }
 }
 
-/// One tick of any bot against any sim. Returns an error message on an
-/// uncaught exception, null otherwise. Shared by the live floor and the
-/// season backtester so the two can never drift apart.
-export function runBotTick(sim, fn, state, rawTrades, lastPx) {
+function buildView(sim, rawTrades, lastPx) {
   const st = sim.status();
   const acct = sim.accounts();
   const rawOrders = sim.bot_orders();
@@ -200,9 +248,8 @@ export function runBotTick(sim, fn, state, rawTrades, lastPx) {
       depth.asks.push({ price: rawDepth[(levels + i) * 2], qty: rawDepth[(levels + i) * 2 + 1] });
     }
   }
-
   // The bot's account sits at slot 1 of the accounts array.
-  const view = Object.freeze({
+  return Object.freeze({
     tick: st[0],
     bid: st[1],
     ask: st[2],
@@ -215,6 +262,22 @@ export function runBotTick(sim, fn, state, rawTrades, lastPx) {
     trades,
     depth,
   });
+}
+
+/// One tick of any bot against any sim. With latency, the bot is handed the
+/// view from `lag.n` ticks ago while its orders still land on the book as it
+/// is now, which is roughly what being slow feels like. Returns an error
+/// message on an uncaught exception, null otherwise. Shared by the live
+/// floor and the backtester so the two can never drift apart.
+export function runBotTick(sim, fn, state, rawTrades, lastPx, lag) {
+  const fresh = buildView(sim, rawTrades, lastPx);
+  let view = fresh;
+  if (lag.n > 0) {
+    lag.buf.push(fresh);
+    if (lag.buf.length > lag.n + 1) lag.buf.shift();
+    if (lag.buf.length <= lag.n) return null; // still waiting for the wire
+    view = lag.buf[0];
+  }
 
   let actions = 0;
   const spend = () => {
@@ -246,99 +309,222 @@ export function runBotTick(sim, fn, state, rawTrades, lastPx) {
   }
 }
 
-const SEASON_TICKS = 100_000;
-const CHUNK = 2_000;
+// ---- the backtester -------------------------------------------------------
 
-// The season backtester: a fresh copy of the market from the same seed, run
-// headless as fast as the engine goes, with the editor's current code on the
-// bot desk. Same engine, same tuning, no rendering, and a report at the end.
+const SEASON_TICKS = 100_000;
+const CHUNK = 2_500;
+const LADDER = [0, 2, 5, 10, 25];
+const SWEEP = 8;
+
+const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+
+/// One headless season: a fresh market from `seed`, the bot (or nobody, when
+/// fn is null) on the bot desk, run as fast as the engine goes but yielding
+/// to the browser every chunk so the live market keeps animating.
+async function simulate({ seed, fn, latency, conditions, onProgress }) {
+  const bt = new PitSim(seed);
+  bt.set_conditions(conditions.vol, conditions.informed);
+  const state = {};
+  const lag = { n: latency, buf: [] };
+  const botEq = [];
+  const waryEq = [];
+  let lastPx = 0;
+  let episodes = 0;
+  let halts = 0;
+  let wasEpisode = false;
+  let wasHalted = false;
+  let crash = null;
+  let done = 0;
+
+  while (done < SEASON_TICKS && !crash) {
+    const end = Math.min(done + CHUNK, SEASON_TICKS);
+    for (; done < end && !crash; done++) {
+      bt.step(1);
+      const t = bt.trades();
+      if (t.length) lastPx = t[t.length - 5];
+      if (fn) {
+        const err = runBotTick(bt, fn, state, t, lastPx, lag);
+        if (err) crash = { tick: done, message: err };
+      }
+      const st = bt.status();
+      if (st[5] === 1 && !wasEpisode) episodes++;
+      wasEpisode = st[5] === 1;
+      if (st[7] === 1 && !wasHalted) halts++;
+      wasHalted = st[7] === 1;
+      if (done % 50 === 0) {
+        const a = bt.accounts();
+        botEq.push(a[7]);
+        waryEq.push(a[23]);
+      }
+    }
+    onProgress?.(done / SEASON_TICKS);
+    await nextFrame();
+  }
+  const accounts = Array.from(bt.accounts());
+  bt.free();
+  return { seed, latency, accounts, botEq, waryEq, episodes, halts, crash };
+}
+
+function drawdown(series) {
+  let peak = -Infinity;
+  let worst = 0;
+  for (const v of series) {
+    peak = Math.max(peak, v);
+    worst = Math.max(worst, peak - v);
+  }
+  return worst;
+}
+
+// Mean over standard deviation of the per-sample p&l changes, scaled to the
+// season. Not a real Sharpe (no risk-free rate, sim time), hence the "-ish".
+function sharpeIsh(series) {
+  if (series.length < 3) return 0;
+  const d = [];
+  for (let i = 1; i < series.length; i++) d.push(series[i] - series[i - 1]);
+  const mean = d.reduce((a, b) => a + b, 0) / d.length;
+  const variance = d.reduce((a, b) => a + (b - mean) ** 2, 0) / d.length;
+  const sd = Math.sqrt(variance);
+  return sd > 0 ? (mean / sd) * Math.sqrt(d.length) : 0;
+}
+
 export class Season {
-  constructor(getSeed) {
+  constructor(getSeed, getConditions, getLatency) {
     this.getSeed = getSeed;
+    this.getConditions = getConditions;
+    this.getLatency = getLatency;
     this.busy = false;
-    $('bot-season').addEventListener('click', () => this.run());
+    $('bot-season').addEventListener('click', () => this.single());
+    $('bot-ladder').addEventListener('click', () => this.ladder());
+    $('bot-sweep').addEventListener('click', () => this.sweep());
   }
 
-  run() {
-    if (this.busy) return;
-    let fn;
+  compileOrExplain() {
     try {
-      fn = new Function('view', 'api', 'state', `"use strict";\n${$('bot-code').value}`);
+      return compile($('bot-code').value);
     } catch (e) {
       $('bot-status').textContent = `won't compile: ${e.message}`;
       $('bot-status').className = 'err';
-      return;
+      return null;
     }
-    this.busy = true;
-    const button = $('bot-season');
-    const report = $('season-report');
-    report.hidden = true;
-
-    const seed = this.getSeed();
-    const bt = new PitSim(seed);
-    const state = {};
-    const started = performance.now();
-    const botEquity = [];
-    const waryEquity = [];
-    let lastPx = 0;
-    let done = 0;
-    let episodes = 0;
-    let halts = 0;
-    let wasEpisode = false;
-    let wasHalted = false;
-    let crash = null;
-
-    const finish = () => {
-      const elapsed = (performance.now() - started) / 1000;
-      this.busy = false;
-      button.textContent = 'run a season';
-      this.report(bt, seed, elapsed, botEquity, waryEquity, episodes, halts, crash);
-      bt.free();
-    };
-
-    const chunk = () => {
-      for (let i = 0; i < CHUNK && done < SEASON_TICKS && !crash; i++, done++) {
-        bt.step(1);
-        const t = bt.trades();
-        if (t.length) lastPx = t[t.length - 5];
-        const err = runBotTick(bt, fn, state, t, lastPx);
-        if (err) crash = { tick: done, message: err };
-        const st = bt.status();
-        if (st[5] === 1 && !wasEpisode) episodes++;
-        wasEpisode = st[5] === 1;
-        if (st[7] === 1 && !wasHalted) halts++;
-        wasHalted = st[7] === 1;
-        if (done % 50 === 0) {
-          const a = bt.accounts();
-          botEquity.push(a[7]);
-          waryEquity.push(a[23]);
-        }
-      }
-      if (done < SEASON_TICKS && !crash) {
-        button.textContent = `simulating... ${Math.round((100 * done) / SEASON_TICKS)}%`;
-        requestAnimationFrame(chunk);
-      } else {
-        finish();
-      }
-    };
-    button.textContent = 'simulating... 0%';
-    requestAnimationFrame(chunk);
   }
 
-  report(bt, seed, elapsed, botEquity, waryEquity, episodes, halts, crash) {
+  // Runs `work` with the busy flag held and the button showing progress.
+  async guard(button, work) {
+    if (this.busy) return;
+    const fn = this.compileOrExplain();
+    if (!fn) return;
+    this.busy = true;
+    const label = button.textContent;
+    $('season-report').hidden = true;
+    const started = performance.now();
+    try {
+      await work(fn, (text) => {
+        button.textContent = text;
+      });
+    } finally {
+      button.textContent = label;
+      this.busy = false;
+    }
+    return (performance.now() - started) / 1000;
+  }
+
+  async single() {
+    const button = $('bot-season');
+    let withBot;
+    let alone;
+    const elapsed = await this.guard(button, async (fn, progress) => {
+      const seed = this.getSeed();
+      const conditions = this.getConditions();
+      withBot = await simulate({
+        seed,
+        fn,
+        latency: this.getLatency(),
+        conditions,
+        onProgress: (p) => progress(`simulating... ${Math.round(p * 50)}%`),
+      });
+      if (withBot.crash) return;
+      alone = await simulate({
+        seed,
+        fn: null,
+        latency: 0,
+        conditions,
+        onProgress: (p) => progress(`counterfactual... ${50 + Math.round(p * 50)}%`),
+      });
+    });
+    if (!withBot) return;
+    this.reportSingle(withBot, alone, elapsed);
+  }
+
+  async ladder() {
+    const runs = [];
+    const elapsed = await this.guard($('bot-ladder'), async (fn, progress) => {
+      const seed = this.getSeed();
+      const conditions = this.getConditions();
+      for (let i = 0; i < LADDER.length; i++) {
+        const r = await simulate({
+          seed,
+          fn,
+          latency: LADDER[i],
+          conditions,
+          onProgress: (p) => progress(`lag ${LADDER[i]}... ${Math.round(((i + p) / LADDER.length) * 100)}%`),
+        });
+        runs.push(r);
+        if (r.crash) break;
+      }
+    });
+    if (runs.length) this.reportLadder(runs, elapsed);
+  }
+
+  async sweep() {
+    const runs = [];
+    const elapsed = await this.guard($('bot-sweep'), async (fn, progress) => {
+      const base = this.getSeed();
+      const conditions = this.getConditions();
+      const latency = this.getLatency();
+      for (let i = 0; i < SWEEP; i++) {
+        const seed = (base + i * 7919) % 100_000_000 || 1;
+        const r = await simulate({
+          seed,
+          fn,
+          latency,
+          conditions,
+          onProgress: (p) => progress(`seed ${i + 1}/${SWEEP}... ${Math.round(((i + p) / SWEEP) * 100)}%`),
+        });
+        runs.push(r);
+        if (r.crash) break;
+      }
+    });
+    if (runs.length) this.reportSweep(runs, elapsed);
+  }
+
+  open() {
     const report = $('season-report');
     report.hidden = false;
     report.replaceChildren();
+    return report;
+  }
 
-    if (crash) {
-      const p = document.createElement('p');
-      p.className = 'err';
-      p.textContent = `your bot crashed at tick ${crash.tick}: ${crash.message}. season abandoned.`;
-      report.append(p);
-      return;
-    }
+  crashed(report, r) {
+    const p = document.createElement('p');
+    p.className = 'err';
+    p.textContent = `your bot crashed at tick ${r.crash.tick} on seed ${r.seed}: ${r.crash.message}. run abandoned.`;
+    report.append(p);
+  }
 
-    const a = bt.accounts();
+  reportSingle(r, alone, elapsed) {
+    const report = this.open();
+    if (r.crash) return this.crashed(report, r);
+
+    const a = r.accounts;
+    const lagNote = r.latency ? `, your bot ${r.latency} ticks behind` : '';
+    report.append(
+      para(
+        `season on seed ${r.seed}: ${SEASON_TICKS.toLocaleString('en-US')} ticks in ` +
+          `${elapsed.toFixed(1)}s (with a counterfactual run), ${r.episodes} informed ` +
+          `episodes, ${r.halts} halts${lagNote}.`,
+      ),
+    );
+
     const desks = [
       ['your bot', 1],
       ['informed', 2],
@@ -347,68 +533,141 @@ export class Season {
       ['mm-wary', 5],
       ['noise crowd', 6],
     ];
-    const head = document.createElement('p');
-    head.textContent =
-      `season on seed ${seed}: ${SEASON_TICKS.toLocaleString('en-US')} ticks in ` +
-      `${elapsed.toFixed(1)}s, ${episodes} informed episodes, ${halts} halts.`;
-    report.append(head);
-
-    const table = document.createElement('table');
-    table.className = 'desks';
-    const tr = document.createElement('tr');
-    for (const h of ['desk', 'volume', 'p&l', 'p&l per lot']) {
-      const th = document.createElement('th');
-      th.textContent = h;
-      tr.append(th);
-    }
-    table.append(tr);
-    for (const [name, i] of desks) {
-      const row = document.createElement('tr');
+    const rows = desks.map(([name, i]) => {
       const vol = a[i * 4 + 2];
       const pnl = a[i * 4 + 3];
-      const cells = [
-        name,
-        vol.toLocaleString('en-US'),
-        money(pnl),
-        vol > 0 ? `${((pnl / vol) * 1).toFixed(2)}t` : '-',
-      ];
-      for (const c of cells) {
-        const td = document.createElement('td');
-        td.textContent = c;
-        row.append(td);
-      }
-      const pnlCell = row.children[2];
-      pnlCell.className = pnl > 50 ? 'up' : pnl < -50 ? 'down' : '';
-      table.append(row);
-    }
-    report.append(table);
+      return [name, vol.toLocaleString('en-US'), money(pnl), vol > 0 ? `${(pnl / vol).toFixed(2)}t` : '-', pnl];
+    });
+    report.append(table(['desk', 'volume', 'p&l', 'p&l per lot'], rows));
 
-    // The race: your equity against mm-wary's, plus the worst stretch.
-    let peak = -Infinity;
-    let drawdown = 0;
-    for (const v of botEquity) {
-      peak = Math.max(peak, v);
-      drawdown = Math.max(drawdown, peak - v);
-    }
     const botFinal = a[7];
     const waryFinal = a[23];
-    const verdict = document.createElement('p');
-    if (botFinal > waryFinal) {
-      verdict.textContent =
-        `your bot beat mm-wary by ${money(botFinal - waryFinal)}. ` +
-        `max drawdown along the way: ${money(drawdown)}.`;
-      verdict.className = 'up';
-    } else {
-      verdict.textContent =
-        `mm-wary wins by ${money(waryFinal - botFinal)}. ` +
-        `your max drawdown was ${money(drawdown)}. the floor remembers.`;
-    }
-
+    const waryAlone = alone.accounts[23];
+    const delta = waryFinal - waryAlone;
+    const verdict = para(
+      botFinal > waryFinal
+        ? `your bot beat mm-wary by ${money(botFinal - waryFinal)}.`
+        : `mm-wary wins by ${money(waryFinal - botFinal)}. the floor remembers.`,
+    );
+    verdict.className = botFinal > waryFinal ? 'up' : '';
+    const stats = para(
+      `max drawdown ${money(drawdown(r.botEq))}, sharpe-ish ${sharpeIsh(r.botEq).toFixed(1)}. ` +
+        `without you on the floor, mm-wary would have made ${money(waryAlone)}; your presence ` +
+        `${delta >= 0 ? `added ${money(delta)} to that` : `took ${money(-delta)} from that`}.`,
+    );
     const canvas = document.createElement('canvas');
     canvas.className = 'season-curve';
-    report.append(canvas, verdict);
-    drawEquity(canvas, botEquity, waryEquity);
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', 'equity curves: your bot in amber, mm-wary in green');
+    report.append(canvas, verdict, stats);
+    drawEquity(canvas, r.botEq, r.waryEq);
   }
+
+  reportLadder(runs, elapsed) {
+    const report = this.open();
+    const last = runs[runs.length - 1];
+    report.append(
+      para(
+        `latency ladder on seed ${runs[0].seed}: the same bot at ${LADDER.join(', ')} ticks ` +
+          `of lag, ${runs.length} seasons in ${elapsed.toFixed(1)}s.`,
+      ),
+    );
+    const rows = runs
+      .filter((r) => !r.crash)
+      .map((r) => {
+        const bot = r.accounts[7];
+        const wary = r.accounts[23];
+        return [
+          `${r.latency} ticks`,
+          money(bot),
+          money(bot - wary),
+          money(drawdown(r.botEq)),
+          sharpeIsh(r.botEq).toFixed(1),
+          bot,
+        ];
+      });
+    report.append(table(['latency', 'your p&l', 'vs mm-wary', 'drawdown', 'sharpe-ish'], rows));
+    if (last.crash) this.crashed(report, last);
+    if (rows.length >= 2) {
+      const first = rows[0][5];
+      const slow = rows[rows.length - 1][5];
+      report.append(
+        para(
+          `from ${rows[0][0]} to ${rows[rows.length - 1][0]} of lag, your p&l moved by ` +
+            `${money(slow - first)}. that difference is what speed is worth to this strategy.`,
+        ),
+      );
+    }
+  }
+
+  reportSweep(runs, elapsed) {
+    const report = this.open();
+    const ok = runs.filter((r) => !r.crash);
+    report.append(
+      para(
+        `seed sweep: the same bot across ${runs.length} seeds, ${elapsed.toFixed(1)}s total` +
+          `${runs[0].latency ? `, ${runs[0].latency} ticks of lag` : ''}.`,
+      ),
+    );
+    const rows = ok.map((r) => {
+      const bot = r.accounts[7];
+      const wary = r.accounts[23];
+      return [String(r.seed), money(bot), money(wary), bot > wary ? 'you' : 'mm-wary', bot];
+    });
+    report.append(table(['seed', 'your p&l', 'mm-wary', 'winner'], rows));
+    const crashed = runs.find((r) => r.crash);
+    if (crashed) this.crashed(report, crashed);
+    if (ok.length) {
+      const pnls = ok.map((r) => r.accounts[7]);
+      const wins = ok.filter((r) => r.accounts[7] > r.accounts[23]).length;
+      const mean = pnls.reduce((x, y) => x + y, 0) / pnls.length;
+      const summary = para(
+        `you beat mm-wary in ${wins} of ${ok.length} seeds. mean ${money(mean)}, ` +
+          `worst ${money(Math.min(...pnls))}, best ${money(Math.max(...pnls))}. ` +
+          (wins === ok.length
+            ? 'clean sweep. now try it with latency.'
+            : wins === 0
+              ? 'one seed can flatter anyone; eight do not.'
+              : 'the spread between worst and best is the part to think about.'),
+      );
+      summary.className = wins > ok.length / 2 ? 'up' : '';
+      report.append(summary);
+    }
+  }
+}
+
+function para(text) {
+  const p = document.createElement('p');
+  p.textContent = text;
+  return p;
+}
+
+// Rows carry their cells as strings, plus a trailing number used to color
+// the p&l cell (second column) up or down.
+function table(headers, rows) {
+  const t = document.createElement('table');
+  t.className = 'desks';
+  const tr = document.createElement('tr');
+  for (const h of headers) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    tr.append(th);
+  }
+  t.append(tr);
+  for (const row of rows) {
+    const r = document.createElement('tr');
+    const cells = row.slice(0, headers.length);
+    const pnl = row[row.length - 1];
+    cells.forEach((c, i) => {
+      const td = document.createElement('td');
+      td.textContent = c;
+      if (i === 2 && headers[2] === 'p&l') td.className = pnl > 50 ? 'up' : pnl < -50 ? 'down' : '';
+      if (i === 1 && headers[1] === 'your p&l') td.className = pnl > 50 ? 'up' : pnl < -50 ? 'down' : '';
+      r.append(td);
+    });
+    t.append(r);
+  }
+  return t;
 }
 
 function drawEquity(canvas, bot, wary) {

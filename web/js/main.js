@@ -4,6 +4,7 @@ import { Chart } from './chart.js';
 import { Tape } from './tape.js';
 import { Desks } from './desks.js';
 import { Depth } from './depth.js';
+import { Heatmap } from './heatmap.js';
 import { BotLab, Season } from './botlab.js';
 import { SoundFx } from './sound.js';
 import { money, lots, price } from './fmt.js';
@@ -74,9 +75,21 @@ const chart = new Chart($('chart'));
 const tape = new Tape($('tape'));
 const desks = new Desks($('desks'));
 const depthChart = new Depth($('depth'));
+const heatmap = new Heatmap($('heatmap'));
 const botLab = new BotLab(() => sim, notify);
-const season = new Season(() => seed);
+const season = new Season(() => seed, getConditions, () => botLab.latency());
 const sound = new SoundFx();
+let viewMode = 'chart';
+
+function getConditions() {
+  return { vol: Number($('vol-mult').value), informed: Number($('inf-mult').value) };
+}
+
+function applyConditions(announce) {
+  const c = getConditions();
+  if (sim) sim.set_conditions(c.vol, c.informed);
+  if (announce) notify(`conditions: volatility ${c.vol}x, informed flow ${c.informed}x`);
+}
 const ladder = new Ladder($('ladder'), (side, px) => {
   if (!sim) return;
   placeLimit(side === 'buy', px);
@@ -109,7 +122,9 @@ function restart(newSeed) {
   history.replaceState(null, '', `#${seed}`);
   $('seed').value = seed;
   sim = new PitSim(seed);
+  applyConditions(false);
   chart.reset();
+  heatmap.reset();
   tape.reset();
   desks.reset();
   botLab.onRestart();
@@ -135,7 +150,9 @@ function render(pending) {
   lastStatus = status;
   lastAccounts = accounts;
   chart.push(sim.series(), trades);
-  chart.draw();
+  heatmap.push(depth, status, trades);
+  if (viewMode === 'heat') heatmap.draw();
+  else chart.draw();
   ladder.draw(depth, status, orders);
   depthChart.draw(depth, status);
   tape.push(trades);
@@ -292,6 +309,15 @@ function wire() {
   $('sound').addEventListener('click', () => {
     $('sound').textContent = sound.toggle() ? 'sound: on' : 'sound: off';
   });
+  $('view-toggle').addEventListener('click', () => {
+    viewMode = viewMode === 'chart' ? 'heat' : 'chart';
+    $('view-toggle').textContent = `view: ${viewMode === 'heat' ? 'heatmap' : 'chart'}`;
+    $('chart').hidden = viewMode === 'heat';
+    $('heatmap').hidden = viewMode !== 'heat';
+    if (sim) render();
+  });
+  $('vol-mult').addEventListener('change', () => applyConditions(true));
+  $('inf-mult').addEventListener('change', () => applyConditions(true));
   $('share').addEventListener('click', () => {
     const url = `${location.origin}${location.pathname}#${seed}`;
     navigator.clipboard.writeText(url).then(
@@ -342,6 +368,7 @@ function applyPrefs() {
     `colors: ${root.dataset.palette === 'cb' ? 'blue/orange' : 'green/red'}`;
   chart.refreshColors();
   depthChart.refreshColors();
+  heatmap.refreshColors();
   if (sim) render();
 }
 
@@ -379,7 +406,8 @@ init()
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('speed').value = '1';
     }
-    const fromHash = Math.floor(Number(location.hash.slice(1)));
+    // The hash is "seed" or "seed|bot code"; the bot lab handles the code.
+    const fromHash = Math.floor(Number(location.hash.slice(1).split('|')[0]));
     restart(fromHash >= 1 ? fromHash : randomSeed());
     requestAnimationFrame(frame);
     if (!tips.welcome) {

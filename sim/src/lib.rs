@@ -121,6 +121,11 @@ pub struct Sim {
     ewma_vol_slow: f64,
     pending_flow: f64,
     prev_mid: f64,
+    /// Market condition dials, both 1.0 by default. Scales the calm random
+    /// walk and how often informed episodes start. Everything was tuned at
+    /// 1.0; turning these up is for watching things break, on purpose.
+    vol_mult: f64,
+    episode_mult: f64,
 }
 
 impl Sim {
@@ -154,9 +159,16 @@ impl Sim {
             ewma_vol_slow: 0.3,
             pending_flow: 0.0,
             prev_mid: START_FAIR,
+            vol_mult: 1.0,
+            episode_mult: 1.0,
         };
         sim.seed_book();
         sim
+    }
+
+    pub fn set_conditions(&mut self, vol_mult: f64, episode_mult: f64) {
+        self.vol_mult = vol_mult.clamp(0.1, 10.0);
+        self.episode_mult = episode_mult.clamp(0.0, 10.0);
     }
 
     /// Open with some resting depth so the first tick isn't a ghost town.
@@ -190,7 +202,7 @@ impl Sim {
         }
         if self.episode.is_none()
             && self.tick > self.episode_cooldown
-            && self.rng.chance(EPISODE_CHANCE)
+            && self.rng.chance(EPISODE_CHANCE * self.episode_mult)
         {
             let sign = if self.rng.chance(0.5) { 1.0 } else { -1.0 };
             self.episode = Some(Episode {
@@ -200,7 +212,8 @@ impl Sim {
             self.episodes_seen += 1;
         }
         let drift = self.episode.as_ref().map_or(0.0, |e| e.drift);
-        self.fair += CALM_SIGMA * self.rng.gauss() + drift + (START_FAIR - self.fair) * 2e-5;
+        self.fair +=
+            CALM_SIGMA * self.vol_mult * self.rng.gauss() + drift + (START_FAIR - self.fair) * 2e-5;
         self.fair = self.fair.max(100.0);
 
         if self.halted() {

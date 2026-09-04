@@ -47,6 +47,12 @@ impl PitSim {
         }
     }
 
+    /// Market condition dials: calm volatility and informed-episode
+    /// frequency, both as multiples of the tuned defaults.
+    pub fn set_conditions(&mut self, vol_mult: f64, episode_mult: f64) {
+        self.sim.set_conditions(vol_mult, episode_mult);
+    }
+
     /// [tick, bestBid, bestAsk, mid, fair, informedActive,
     ///  wary quoting (0 = pulled), halted]
     pub fn status(&self) -> Vec<f64> {
