@@ -112,6 +112,14 @@ impl Book {
         self.ioc(side, limit, qty, owner)
     }
 
+    /// Remove every resting order without emitting events. This is what a
+    /// trading halt with a quote purge looks like from the book's side.
+    pub fn purge_all(&mut self) {
+        self.bids.clear();
+        self.asks.clear();
+        self.index.clear();
+    }
+
     pub fn cancel(&mut self, id: OrderId) -> bool {
         let Some((side, price)) = self.index.remove(&id) else {
             return false;

@@ -48,7 +48,7 @@ impl PitSim {
     }
 
     /// [tick, bestBid, bestAsk, mid, fair, informedActive,
-    ///  wary quoting (0 = pulled)]
+    ///  wary quoting (0 = pulled), halted]
     pub fn status(&self) -> Vec<f64> {
         let bb = self.sim.book.best_bid().map_or(0.0, |p| p as f64);
         let ba = self.sim.book.best_ask().map_or(0.0, |p| p as f64);
@@ -66,6 +66,7 @@ impl PitSim {
             self.sim.fair,
             if self.sim.informed_active() { 1.0 } else { 0.0 },
             wary_in,
+            if self.sim.halted() { 1.0 } else { 0.0 },
         ]
     }
 

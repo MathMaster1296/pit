@@ -30,8 +30,8 @@ fn main() {
     }
 
     println!(
-        "seed {seed}, {ticks} ticks, {} informed episodes",
-        sim.episodes_seen
+        "seed {seed}, {ticks} ticks, {} informed episodes, {} halts",
+        sim.episodes_seen, sim.halts_seen
     );
     println!(
         "{trades} trades, {volume} lots, avg spread {:.2} ticks, final mid {:.2}",

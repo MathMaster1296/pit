@@ -36,6 +36,18 @@ const EPISODE_COOLDOWN: u64 = 600;
 const NOISE_ACT_CHANCE: f64 = 0.08;
 const NOISE_ORDER_TTL: u64 = 400;
 
+// Circuit breaker: a violent enough move halts trading and purges every
+// resting order, the way limit-up/limit-down rules do on real venues. Fair
+// value keeps drifting while the tape is frozen, which is what makes the
+// reopen interesting. Makers rejoin a beat late; they have seen this before.
+const HALT_WINDOW: usize = 100;
+const HALT_MOVE: f64 = 30.0;
+const HALT_TICKS: u64 = 150;
+const REOPEN_GRACE: u64 = 25;
+/// After a reopen the price often gaps to catch up with fair value, and that
+/// catch-up move must not trip the breaker again, or halts arrive in chains.
+const HALT_REARM: u64 = 500;
+
 #[derive(Clone, Copy, Default)]
 pub struct Account {
     /// Cash in tick units (price ticks times lots), signed.
@@ -95,6 +107,10 @@ pub struct Sim {
     episode: Option<Episode>,
     episode_cooldown: u64,
     pub episodes_seen: u32,
+    recent_mids: VecDeque<f64>,
+    halted_until: u64,
+    makers_back_at: u64,
+    pub halts_seen: u32,
     noise_orders: VecDeque<(OrderId, u64)>,
     user_orders: Vec<OrderId>,
     bot_orders: Vec<OrderId>,
@@ -124,6 +140,10 @@ impl Sim {
             episode: None,
             episode_cooldown: 0,
             episodes_seen: 0,
+            recent_mids: VecDeque::new(),
+            halted_until: 0,
+            makers_back_at: 0,
+            halts_seen: 0,
             noise_orders: VecDeque::new(),
             user_orders: Vec::new(),
             bot_orders: Vec::new(),
@@ -183,6 +203,24 @@ impl Sim {
         self.fair += CALM_SIGMA * self.rng.gauss() + drift + (START_FAIR - self.fair) * 2e-5;
         self.fair = self.fair.max(100.0);
 
+        if self.halted() {
+            // The clock runs and fair value keeps moving, but nobody trades
+            // and the book stays empty. The mid holds its last print until
+            // the reopen, so the chart shows the gap forming in real time.
+            self.prev_mid = self.mid;
+            self.ewma_vol *= 0.97;
+            self.ewma_flow *= 0.97;
+            self.pending_flow = 0.0;
+            self.series.push(Sample {
+                tick: self.tick,
+                mid: self.mid,
+                fair: self.fair,
+                informed: self.episode.is_some(),
+            });
+            return;
+        }
+
+        let makers_on = self.tick >= self.makers_back_at;
         let view = self.view();
 
         // Makers first, in rotating order so nobody always has queue
@@ -199,10 +237,12 @@ impl Sim {
             tick,
             ..
         } = self;
-        let n = makers.len();
-        for k in 0..n {
-            let m = &mut makers[(*tick as usize + k) % n];
-            m.update(book, &view, accounts[m.owner as usize].inventory);
+        if makers_on {
+            let n = makers.len();
+            for k in 0..n {
+                let m = &mut makers[(*tick as usize + k) % n];
+                m.update(book, &view, accounts[m.owner as usize].inventory);
+            }
         }
         let informed_slot = rng.below(NOISE_COUNT as u32) as u16;
         for i in 0..NOISE_COUNT {
@@ -268,6 +308,27 @@ impl Sim {
             fair: self.fair,
             informed: self.episode.is_some(),
         });
+
+        // Circuit breaker: compare the mid to where it stood a window ago.
+        self.recent_mids.push_back(self.mid);
+        if self.recent_mids.len() > HALT_WINDOW {
+            self.recent_mids.pop_front();
+        }
+        let rearmed = self.tick >= self.halted_until + HALT_REARM;
+        if self.recent_mids.len() == HALT_WINDOW && rearmed {
+            let then = *self.recent_mids.front().expect("window is full");
+            if (self.mid - then).abs() > HALT_MOVE {
+                self.halted_until = self.tick + HALT_TICKS;
+                self.makers_back_at = self.halted_until + REOPEN_GRACE;
+                self.halts_seen += 1;
+                self.book.purge_all();
+                self.book.events.clear();
+                self.recent_mids.clear();
+                self.noise_orders.clear();
+                self.user_orders.clear();
+                self.bot_orders.clear();
+            }
+        }
 
         // Backstop if nobody is draining the tape (the native example does,
         // the web frontend does; this is for everyone else).
@@ -346,6 +407,10 @@ impl Sim {
         self.episode.is_some()
     }
 
+    pub fn halted(&self) -> bool {
+        self.tick < self.halted_until
+    }
+
     pub fn take_tape(&mut self) -> Vec<Trade> {
         std::mem::take(&mut self.tape)
     }
@@ -358,6 +423,9 @@ impl Sim {
     // never shows a stale blotter.
 
     pub fn user_limit(&mut self, side: Side, price: Price, qty: Qty) -> OrderId {
+        if self.halted() {
+            return 0; // no valid order ever gets id 0
+        }
         let id = self.book.limit(side, price, qty, USER);
         self.settle();
         if self.book.is_live(id) {
@@ -367,6 +435,9 @@ impl Sim {
     }
 
     pub fn user_market(&mut self, side: Side, qty: Qty) -> Qty {
+        if self.halted() {
+            return 0;
+        }
         let filled = self.book.market(side, qty, USER);
         self.settle();
         filled
@@ -389,6 +460,9 @@ impl Sim {
     // The scripted bot's hands. Same shape as the user's, same rules.
 
     pub fn bot_limit(&mut self, side: Side, price: Price, qty: Qty) -> OrderId {
+        if self.halted() {
+            return 0;
+        }
         let id = self.book.limit(side, price, qty, BOT);
         self.settle();
         if self.book.is_live(id) {
@@ -398,6 +472,9 @@ impl Sim {
     }
 
     pub fn bot_market(&mut self, side: Side, qty: Qty) -> Qty {
+        if self.halted() {
+            return 0;
+        }
         let filled = self.book.market(side, qty, BOT);
         self.settle();
         filled

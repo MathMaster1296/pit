@@ -4,7 +4,8 @@ import { Chart } from './chart.js';
 import { Tape } from './tape.js';
 import { Desks } from './desks.js';
 import { Depth } from './depth.js';
-import { BotLab } from './botlab.js';
+import { BotLab, Season } from './botlab.js';
+import { SoundFx } from './sound.js';
 import { money, lots, price } from './fmt.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +18,23 @@ let lastStatus = null;
 let lastAccounts = null;
 let lastTradePx = 0;
 let wasEpisode = false;
+let wasHalted = false;
 let lastFillToast = 0;
+let lastHeadline = 0;
+
+// What the wire says when informed flow shows up. Deliberately cryptic: the
+// desks that matter already know, and you are not one of the desks that
+// matter.
+const HEADLINES = [
+  'unusual size on the tape',
+  'someone is in a hurry',
+  'the phones upstairs are ringing',
+  'big footprints in the book',
+  'a desk is leaning hard on one side',
+  'flow has an opinion',
+  'somebody read tomorrow\'s paper',
+  'the crowd is one step behind again',
+];
 
 // One-time tips, remembered across visits where the browser allows it.
 const tips = (() => {
@@ -58,6 +75,8 @@ const tape = new Tape($('tape'));
 const desks = new Desks($('desks'));
 const depthChart = new Depth($('depth'));
 const botLab = new BotLab(() => sim, notify);
+const season = new Season(() => seed);
+const sound = new SoundFx();
 const ladder = new Ladder($('ladder'), (side, px) => {
   if (!sim) return;
   placeLimit(side === 'buy', px);
@@ -71,6 +90,7 @@ function orderQty() {
 }
 
 function placeLimit(buy, px) {
+  if (marketClosed()) return;
   const qty = orderQty();
   if (!qty || !px) return;
   const id = sim.user_limit(buy, px, qty);
@@ -136,8 +156,30 @@ function render(pending) {
       'episode',
       'that shading is informed flow: someone can see where the price is headed. watch the desks table.',
     );
+    sound.episode();
+    const now = performance.now();
+    if (now - lastHeadline > 12000 && Number($('speed').value) <= 8) {
+      lastHeadline = now;
+      notify(`wire: ${HEADLINES[Math.floor(status[0] / 977) % HEADLINES.length]}`);
+    }
   }
   wasEpisode = episode;
+
+  const halted = status[7] === 1;
+  $('halt-pill').hidden = !halted;
+  if (halted && !wasHalted) {
+    notify('trading halted: that move tripped the circuit breaker. all resting orders purged.');
+    sound.halt();
+  }
+  if (!halted && wasHalted) {
+    notify('reopened. mind the gap.');
+    sound.reopen();
+  }
+  wasHalted = halted;
+
+  for (let i = 0; i < trades.length; i += 6) {
+    sound.trade(trades[i + 3] === 1);
+  }
 
   // Your fills, batched per frame so a burst reads as one line.
   let filled = 0;
@@ -233,10 +275,21 @@ function wire() {
   $('join-bid').addEventListener('click', () => placeLimit(true, lastStatus?.[1]));
   $('join-ask').addEventListener('click', () => placeLimit(false, lastStatus?.[2]));
   $('flatten').addEventListener('click', () => {
+    if (marketClosed()) return;
     const pos = lastAccounts ? lastAccounts[1] : 0;
     if (pos === 0) return;
     sim.user_market(pos < 0, Math.abs(pos));
     render();
+  });
+  $('today').addEventListener('click', () => {
+    const d = new Date();
+    const daily =
+      d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+    restart(daily);
+    notify('today\'s market: everyone in the world gets this exact seed today.');
+  });
+  $('sound').addEventListener('click', () => {
+    $('sound').textContent = sound.toggle() ? 'sound: on' : 'sound: off';
   });
   $('share').addEventListener('click', () => {
     const url = `${location.origin}${location.pathname}#${seed}`;
@@ -254,10 +307,19 @@ function wire() {
 }
 
 function marketOrder(buy) {
+  if (marketClosed()) return;
   const qty = orderQty();
   if (!qty) return;
   sim.user_market(buy, qty);
   render();
+}
+
+function marketClosed() {
+  if (lastStatus && lastStatus[7] === 1) {
+    notify('the market is halted. nobody trades, not even you.');
+    return true;
+  }
+  return false;
 }
 
 function togglePause() {

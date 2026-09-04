@@ -40,22 +40,29 @@ makers respond differently:
   volatility against their long-run baselines. When flow turns one-sided it
   widens, and past a threshold it pulls its quotes entirely.
 
-Over a long session mm-fixed bleeds, mm-skew roughly breaks even, and
-mm-wary, despite trading a quarter of the volume, is usually the only maker
-in the green. Nothing scripts that outcome; it falls out of who gets picked
-off during the shaded stretches. Here is a 500k-tick run on seed 7:
+Over a long session mm-fixed bleeds, and while mm-skew and mm-wary both end
+up green, mm-wary gets there on a quarter of the volume, which means it
+earns several times more per lot traded. Selectivity, not turnover, is the
+edge. Nothing scripts that outcome; it falls out of who gets picked off
+during the shaded stretches. Here is a 500k-tick run on seed 7:
 
 ```
-seed 7, 500000 ticks, 204 informed episodes
-471386 trades, 1870262 lots, avg spread 1.87 ticks, final mid 99.21
+seed 7, 500000 ticks, 208 informed episodes, 51 halts
+462132 trades, 1829731 lots, avg spread 1.87 ticks, final mid 98.72
 
 desk             volume      pos      pnl ($)
-informed         366097     -485     22657.37
-mm-fixed         104972       46      -625.81
-mm-skew          145309        3        82.32
-mm-wary           34493        3       237.29
-noise crowd     3089653      433    -22351.17
+informed         347657      223     23656.56
+mm-fixed         100184      -40      -314.12
+mm-skew          139913        5       284.81
+mm-wary           34634       -6       220.85
+noise crowd     3037074     -182    -23848.11
 ```
+
+Those 51 halts are the circuit breaker: a violent enough move stops trading
+for a stretch and purges every resting order, the way limit-up/limit-down
+rules do on real venues. Fair value keeps drifting while the tape is
+frozen, so reopens gap, and quoting into a reopen is its own way to learn
+about adverse selection.
 
 The noise crowd pays for everything, which is also the textbook answer to
 who funds the market making industry.
@@ -102,12 +109,19 @@ if (!haveBid && view.bid) api.limit('buy', view.bid, size);
 if (!haveAsk && view.ask) api.limit('sell', view.ask, size);
 ```
 
-You get `view` (book, position, your orders, this tick's trades), `api`
-(limit, market, cancel, capped at 6 actions a tick), and a `state` object
-that survives between ticks. There are presets to start from, including
-exactly the naive quoter above so you can watch yourself get adversely
-selected. The standing challenge: beat mm-wary's p&l over a long run
-without reading anything the other desks can't see.
+You get `view` (top of book and depth, position, your orders, this tick's
+trades), `api` (limit, market, cancel, capped at 6 actions a tick), and a
+`state` object that survives between ticks. There are presets to start
+from, including exactly the naive quoter above so you can watch yourself
+get adversely selected.
+
+When the strategy feels ready, hit "run a season": it backtests your exact
+code against 100,000 ticks of a fresh copy of the current seed, headless,
+in a few seconds, and reports every desk's p&l, your p&l per lot, your max
+drawdown, and an equity curve of your bot racing mm-wary. The standing
+challenge: beat mm-wary over a season without reading anything the other
+desks can't see. The "today's market" button gives everyone on earth the
+same seed for the day, if you want a fair fight to compare on.
 
 ## The engine
 

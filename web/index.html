@@ -22,7 +22,7 @@
     <p class="tagline">a tiny exchange: three market makers, a crowd of noise traders, and sometimes someone who knows something</p>
   </div>
   <div class="controls">
-    <label>seed <input id="seed" type="number" min="1" max="999999" title="any number works: the same seed always produces the same market"></label>
+    <label>seed <input id="seed" type="number" min="1" max="99999999" title="any number works: the same seed always produces the same market"></label>
     <button id="restart" title="start a fresh market from this seed">restart</button>
     <button id="pause" title="space also works">pause</button>
     <label>speed
@@ -33,6 +33,8 @@
         <option value="32">32x</option>
       </select>
     </label>
+    <button id="today" title="one shared seed per day, same market for everyone">today's market</button>
+    <button id="sound" title="tape clicks and floor alarms, synthesized">sound: off</button>
     <button id="share" title="copy a link that replays this exact run">share</button>
   </div>
 </header>
@@ -49,7 +51,9 @@
       <h2><span>market
         <span id="quote-line" title="best bid / best ask, and the last traded price"></span>
         <span id="episode-pill" class="badge hot" hidden
-          title="an informed trader is in the market and can see where fair value is headed">informed flow</span></span>
+          title="an informed trader is in the market and can see where fair value is headed">informed flow</span>
+        <span id="halt-pill" class="badge hot" hidden
+          title="the circuit breaker tripped: trading is stopped and every resting order was purged">halted</span></span>
         <span class="legend">
           <span class="swatch mid"></span>mid
           <span class="swatch fair"></span>fair value
@@ -108,6 +112,11 @@
     <span id="bot-status"></span>
   </div>
   <textarea id="bot-code" spellcheck="false" rows="16" aria-label="bot strategy code"></textarea>
+  <div class="bot-controls">
+    <button id="bot-season" title="backtest the code above against a fresh copy of this seed">run a season</button>
+    <span class="hint">100,000 ticks, headless, done in seconds. the live market keeps running.</span>
+  </div>
+  <div id="season-report" class="season" hidden></div>
   <p class="fine">Your code runs once per tick through the same matching engine as
   every other desk, and shows up as "your bot" in the table with its own p&amp;l.
   Caps: 6 actions per tick, 200 lots per order, and an exception gets the bot
@@ -143,9 +152,19 @@
   what getting picked off costs. That last one is the reason mm-wary
   exists.</p>
 
+  <p>Two more things the floor will do to you. If the price moves violently
+  enough, the circuit breaker halts trading, purges every resting order
+  (yours included), and freezes the tape while fair value keeps drifting
+  underneath; the reopen gap is where fortunes change hands, so mind it.
+  And the "today's market" button loads one shared seed per calendar day,
+  the same market for everyone on earth, if you want something to compare
+  runs on.</p>
+
   <p>When clicking gets old, scroll down to the bot lab and put your strategy
   in code. Your bot becomes a real desk on this floor, and the only real
-  question in this whole toy is whether it can out-trade mm-wary.</p>
+  question in this whole toy is whether it can out-trade mm-wary. The "run a
+  season" button backtests your code against 100,000 ticks of a fresh copy
+  of the current seed and hands you a report card, equity curve included.</p>
 
   <p>If your first market order shows a small loss right away, that is not a
   bug. You paid the spread, which is the thing everyone else here is fighting
